@@ -1,0 +1,1 @@
+This is a placeholder repository which will contain generated TypeScript definitions files based on various Chrome APIs.
