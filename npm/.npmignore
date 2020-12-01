@@ -1,0 +1,6 @@
+.work
+.cache
+lib/
+build.js
+*.js
+preamble.d.ts

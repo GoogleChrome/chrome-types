@@ -1,18 +1,15 @@
 {
-  "description": "TypeScript definition builder for Chrome extensions",
-  "dependencies": {
-    "node-fetch": "^2.6.1",
-    "tar-stream": "^2.1.4"
-  },
-  "private": true,
+  "description": "TypeScript definitions for Chrome extensions",
   "license": "Apache-2.0",
-  "type": "module",
-  "scripts": {
-    "build": "./build.js > npm/index.d.ts"
-  },
+  "types": "index.d.ts",
+  "name": "chrome-types",
+  "version": "0.0.2",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/GoogleChrome/chrome-types.git"
+  },
+  "scripts": {
+    "prepublishOnly": "cd ..; npm run build"
   },
   "author": "The Chromium Authors",
   "bugs": {
