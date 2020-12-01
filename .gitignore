@@ -1,1 +1,4 @@
 .DS_Store
+.cache
+.work
+node_modules/

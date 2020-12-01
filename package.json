@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "node-fetch": "^2.6.1",
+    "tar-stream": "^2.1.4"
+  },
+  "type": "module"
+}
