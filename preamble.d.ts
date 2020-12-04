@@ -21,3 +21,8 @@ interface DirectoryEntry extends Entry {}
 interface FileEntry extends Entry {}
 interface FileSystem {}
 interface LocalMediaStream {}
+
+declare namespace chrome {
+  // TODO: This fixes devtools' types which refer to 'global'.
+  type global = typeof Window;
+}

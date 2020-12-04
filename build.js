@@ -28,6 +28,7 @@ import { tasks } from './lib/tasks.js';
 const definitionPaths = [
   'extensions/common/api',
   'chrome/common/extensions/api',
+  'chrome/common/extensions/api/devtools',
 ];
 
 const allPaths = [
@@ -147,7 +148,14 @@ function exec(args, cwd, stdin=undefined) {
 async function run(target) {
   await fsPromises.rmdir(target, {recursive: true});
 
-  await Promise.all(allPaths.map((chromePath) => {
+  allPaths.sort();
+  await Promise.all(allPaths.map((chromePath, i) => {
+    const previousPaths = allPaths.slice(0, i);
+    for (const previous of previousPaths) {
+      if (chromePath.startsWith(previous + '/')) {
+        return; // skip, we have this one
+      }
+    }
     return fetchAndPrepare(target, chromePath);
   }));
 
@@ -194,7 +202,6 @@ async function run(target) {
       console.warn(`failed to convert ${definition}:`);
       console.warn(out.toString('utf-8'));
     } else {
-      process.stdout.write(`\n// ${path.basename(definition)}\n`);
       process.stdout.write(out);
     }
   }
@@ -205,5 +212,6 @@ const __dirname = path.dirname(__filename);
 
 const preamble = await fsPromises.readFile(path.join(__dirname, 'preamble.d.ts'));
 process.stdout.write(preamble);
+process.stdout.write(`// Generated on ${new Date()}\n`);
 
 await run(path.join(__dirname, '.work'));
