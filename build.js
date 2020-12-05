@@ -181,11 +181,7 @@ async function run(target) {
 
     // We need to glob subfolders as "devtools" contains inner JSON files.
     const list = fg.sync('**/*.{json,idl}', {cwd: p}).filter((p) => {
-      const invalidRe = /(_private|_internal|test)/;
-      if (invalidRe.test(p) || p.startsWith('_')) {
-        return false;
-      }
-      return p.endsWith('.json') || p.endsWith('.idl');
+      return !p.startsWith('_') && (p.endsWith('.json') || p.endsWith('.idl'));
     });
 
     for (const filename of list) {
@@ -202,37 +198,75 @@ async function run(target) {
     const p = path.join(definitionPath, filename);
 
     const args = ['python', 'tools/json_schema_compiler/compiler.py', '-g', 'tsdoc', p];
-    const {code, out} = await exec(args, target)
+    const {code, out} = await exec(args, target);
+    if (code) {
+      throw new Error(`could not convert: ${p}`);
+    }
+    const s = out.toString('utf-8');
 
-    const namespaceName = extractNamespaceName(out);
+    const namespaceName = extractNamespaceName(s);
     const id = namespaceName.replace(/^chrome\./, '');
 
     const config = extractConfig(id, features);
     if (config === null) {
-      // TODO: manifest config?
-      return {code, out: null};  // do nothing with this API
+      console.warn('Skipping', namespaceName, '...');
+      return '';  // do nothing with this API
     }
 
-    console.warn('got namespace', namespaceName, config);
+    const {extensionTypes: et} = config;
 
-    return {code, out};
-  }, 1);
+    // FIXME(samthor): 'usb' is not marked as an extension API but is in fact used by
+    // 'printerProviders' purely as a type.
+    const isAlwaysExtensionApi = (id === 'usb');
 
-  for (const {code, out} of extracted) {
-    if (code) {
-      console.warn(`failed to convert:`);
-      console.warn(out.toString('utf-8'));
-    } else if (out) {
-      process.stdout.write(out);
+    // nb. Most Apps APIs are marked correctly; 'chrome.tabs' is only marked legacy_packaged_app.
+    const isAppApi = et.size === 0 || et.has('platform_app') || et.has('legacy_packaged_app');
+    const isExtensionApi = et.size === 0 || et.has('extension') || isAlwaysExtensionApi;
+
+    const prefixLines = [];
+
+    if (config.channel !== 'stable') {
+      prefixLines.push(`@chrome-channel ${config.channel}`);
+    }
+    config.platforms.forEach((platform) => {
+      prefixLines.push(`@chrome-platform ${platform}`);
+    });
+    config.permissions.forEach((permission) => {
+      prefixLines.push(`@chrome-permission ${permission}`);
+    });
+
+    const generated = s.replace(' */', prefixLines.map((line) => ` * ${line}\n`).join('') + ' */');
+    return {generated, isAppApi, isExtensionApi};
+  });
+
+  // We generate two output files: one contains APIs supported by platform apps, and one contains
+  // APIs supported by extensions.
+
+  const apps = [];
+  const extensions = [];
+  for (const {generated, isAppApi, isExtensionApi} of extracted) {
+    if (isAppApi) {
+      apps.push(generated);
+    }
+    if (isExtensionApi) {
+      extensions.push(generated);
     }
   }
+  return {apps, extensions};
 }
+
+const generatedString = `// Generated on ${new Date()}\n\n`;
 
 const {pathname: __filename} = new URL(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const preamble = await fsPromises.readFile(path.join(__dirname, 'preamble.d.ts'));
-process.stdout.write(preamble);
-process.stdout.write(`// Generated on ${new Date()}\n`);
+const {apps, extensions} = await run(path.join(__dirname, '.work'));
 
-await run(path.join(__dirname, '.work'));
+const outputDir = path.join(__dirname, 'npm');
+
+await fsPromises.writeFile(path.join(outputDir, 'index.d.ts'),
+    preamble + generatedString + extensions.join('\n'));
+
+await fsPromises.writeFile(path.join(outputDir, 'platform_app.d.ts'),
+    preamble + generatedString + apps.join('\n'));
