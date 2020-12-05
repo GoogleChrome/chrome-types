@@ -225,8 +225,10 @@ async function run(target) {
 
     const prefixLines = [];
 
-    if (config.channel !== 'stable') {
-      prefixLines.push(`@chrome-channel ${config.channel}`);
+    if (config.channel === 'beta') {
+      prefixLines.push('@beta');
+    } else if (config.channel === 'dev') {
+      prefixLines.push('@alpha');
     }
     config.platforms.forEach((platform) => {
       prefixLines.push(`@chrome-platform ${platform}`);
