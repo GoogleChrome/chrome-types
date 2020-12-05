@@ -23,12 +23,14 @@ import {promises as fsPromises} from 'fs';
 import path from 'path';
 import stream from 'stream';
 import childProcess from 'child_process';
-import { tasks } from './lib/tasks.js';
+import {tasks} from './lib/tasks.js';
+import {extractNamespaceName} from './lib/typedoc-helper.js';
+import fg from 'fast-glob';
+import {extractConfig, loadFeatures} from './lib/features.js';
 
 const definitionPaths = [
   'extensions/common/api',
   'chrome/common/extensions/api',
-  'chrome/common/extensions/api/devtools',
 ];
 
 const allPaths = [
@@ -168,12 +170,17 @@ async function run(target) {
     await exec(args, target, output);
   }
 
+  // Find all features files and combine them.
+  const features = await loadFeatures(definitionPaths.map((p) => path.join(target, p)));
+
   // Create a sorted list of source JSON/IDL files that can be processed by
   // this tool.
   const definitions = [];
   for (const definitionPath of definitionPaths) {
     const p = path.join(target, definitionPath);
-    const list = (await fsPromises.readdir(p)).filter((p) => {
+
+    // We need to glob subfolders as "devtools" contains inner JSON files.
+    const list = fg.sync('**/*.{json,idl}', {cwd: p}).filter((p) => {
       const invalidRe = /(_private|_internal|test)/;
       if (invalidRe.test(p) || p.startsWith('_')) {
         return false;
@@ -182,26 +189,40 @@ async function run(target) {
     });
 
     for (const filename of list) {
-      definitions.push(path.join(definitionPath, filename));
+      definitions.push({definitionPath, filename});
     }
   }
 
   // Sort by filename, not by directory.
-  definitions.sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
+  definitions.sort(({filename: a}, {filename: b}) => a.localeCompare(b));
 
   // Perform compilation in parallel.
   // Testing on an iMac Pro brings this from 13s => 3s.
-  const extracted = await tasks(definitions, async (definition) => {
-    const args = ['python', 'tools/json_schema_compiler/compiler.py', '-g', 'tsdoc', definition];
-    const {code, out} = await exec(args, target)
-    return {definition, code, out};
-  });
+  const extracted = await tasks(definitions, async ({definitionPath, filename}) => {
+    const p = path.join(definitionPath, filename);
 
-  for (const {definition, code, out} of extracted) {
+    const args = ['python', 'tools/json_schema_compiler/compiler.py', '-g', 'tsdoc', p];
+    const {code, out} = await exec(args, target)
+
+    const namespaceName = extractNamespaceName(out);
+    const id = namespaceName.replace(/^chrome\./, '');
+
+    const config = extractConfig(id, features);
+    if (config === null) {
+      // TODO: manifest config?
+      return {code, out: null};  // do nothing with this API
+    }
+
+    console.warn('got namespace', namespaceName, config);
+
+    return {code, out};
+  }, 1);
+
+  for (const {code, out} of extracted) {
     if (code) {
-      console.warn(`failed to convert ${definition}:`);
+      console.warn(`failed to convert:`);
       console.warn(out.toString('utf-8'));
-    } else {
+    } else if (out) {
       process.stdout.write(out);
     }
   }
