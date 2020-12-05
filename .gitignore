@@ -2,4 +2,4 @@
 .cache
 .work
 node_modules/
-index.d.ts
+npm/*.d.ts

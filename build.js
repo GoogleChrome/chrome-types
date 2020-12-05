@@ -23,12 +23,14 @@ import {promises as fsPromises} from 'fs';
 import path from 'path';
 import stream from 'stream';
 import childProcess from 'child_process';
-import { tasks } from './lib/tasks.js';
+import {tasks} from './lib/tasks.js';
+import {extractNamespaceName} from './lib/typedoc-helper.js';
+import fg from 'fast-glob';
+import {extractConfig, loadFeatures} from './lib/features.js';
 
 const definitionPaths = [
   'extensions/common/api',
   'chrome/common/extensions/api',
-  'chrome/common/extensions/api/devtools',
 ];
 
 const allPaths = [
@@ -168,50 +170,105 @@ async function run(target) {
     await exec(args, target, output);
   }
 
+  // Find all features files and combine them.
+  const features = await loadFeatures(definitionPaths.map((p) => path.join(target, p)));
+
   // Create a sorted list of source JSON/IDL files that can be processed by
   // this tool.
   const definitions = [];
   for (const definitionPath of definitionPaths) {
     const p = path.join(target, definitionPath);
-    const list = (await fsPromises.readdir(p)).filter((p) => {
-      const invalidRe = /(_private|_internal|test)/;
-      if (invalidRe.test(p) || p.startsWith('_')) {
-        return false;
-      }
-      return p.endsWith('.json') || p.endsWith('.idl');
+
+    // We need to glob subfolders as "devtools" contains inner JSON files.
+    const list = fg.sync('**/*.{json,idl}', {cwd: p}).filter((p) => {
+      return !p.startsWith('_') && (p.endsWith('.json') || p.endsWith('.idl'));
     });
 
     for (const filename of list) {
-      definitions.push(path.join(definitionPath, filename));
+      definitions.push({definitionPath, filename});
     }
   }
 
   // Sort by filename, not by directory.
-  definitions.sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
+  definitions.sort(({filename: a}, {filename: b}) => a.localeCompare(b));
 
   // Perform compilation in parallel.
   // Testing on an iMac Pro brings this from 13s => 3s.
-  const extracted = await tasks(definitions, async (definition) => {
-    const args = ['python', 'tools/json_schema_compiler/compiler.py', '-g', 'tsdoc', definition];
-    const {code, out} = await exec(args, target)
-    return {definition, code, out};
+  const extracted = await tasks(definitions, async ({definitionPath, filename}) => {
+    const p = path.join(definitionPath, filename);
+
+    const args = ['python', 'tools/json_schema_compiler/compiler.py', '-g', 'tsdoc', p];
+    const {code, out} = await exec(args, target);
+    if (code) {
+      throw new Error(`could not convert: ${p}`);
+    }
+    const s = out.toString('utf-8');
+
+    const namespaceName = extractNamespaceName(s);
+    const id = namespaceName.replace(/^chrome\./, '');
+
+    const config = extractConfig(id, features);
+    if (config === null) {
+      console.warn('Skipping', namespaceName, '...');
+      return '';  // do nothing with this API
+    }
+
+    const {extensionTypes: et} = config;
+
+    // FIXME(samthor): 'usb' is not marked as an extension API but is in fact used by
+    // 'printerProviders' purely as a type.
+    const isAlwaysExtensionApi = (id === 'usb');
+
+    // nb. Most Apps APIs are marked correctly; 'chrome.tabs' is only marked legacy_packaged_app.
+    const isAppApi = et.size === 0 || et.has('platform_app') || et.has('legacy_packaged_app');
+    const isExtensionApi = et.size === 0 || et.has('extension') || isAlwaysExtensionApi;
+
+    const prefixLines = [];
+
+    if (config.channel === 'beta') {
+      prefixLines.push('@beta');
+    } else if (config.channel === 'dev') {
+      prefixLines.push('@alpha');
+    }
+    config.platforms.forEach((platform) => {
+      prefixLines.push(`@chrome-platform ${platform}`);
+    });
+    config.permissions.forEach((permission) => {
+      prefixLines.push(`@chrome-permission ${permission}`);
+    });
+
+    const generated = s.replace(' */', prefixLines.map((line) => ` * ${line}\n`).join('') + ' */');
+    return {generated, isAppApi, isExtensionApi};
   });
 
-  for (const {definition, code, out} of extracted) {
-    if (code) {
-      console.warn(`failed to convert ${definition}:`);
-      console.warn(out.toString('utf-8'));
-    } else {
-      process.stdout.write(out);
+  // We generate two output files: one contains APIs supported by platform apps, and one contains
+  // APIs supported by extensions.
+
+  const apps = [];
+  const extensions = [];
+  for (const {generated, isAppApi, isExtensionApi} of extracted) {
+    if (isAppApi) {
+      apps.push(generated);
+    }
+    if (isExtensionApi) {
+      extensions.push(generated);
     }
   }
+  return {apps, extensions};
 }
+
+const generatedString = `// Generated on ${new Date()}\n\n`;
 
 const {pathname: __filename} = new URL(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const preamble = await fsPromises.readFile(path.join(__dirname, 'preamble.d.ts'));
-process.stdout.write(preamble);
-process.stdout.write(`// Generated on ${new Date()}\n`);
+const {apps, extensions} = await run(path.join(__dirname, '.work'));
 
-await run(path.join(__dirname, '.work'));
+const outputDir = path.join(__dirname, 'npm');
+
+await fsPromises.writeFile(path.join(outputDir, 'index.d.ts'),
+    preamble + generatedString + extensions.join('\n'));
+
+await fsPromises.writeFile(path.join(outputDir, 'platform_app.d.ts'),
+    preamble + generatedString + apps.join('\n'));
