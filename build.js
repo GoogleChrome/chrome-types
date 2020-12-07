@@ -46,7 +46,7 @@ const allPaths = [
 
 const patchesToApply = [
   // This is the patch out to create TSDoc types.
-  'https://chromium-review.googlesource.com/changes/chromium%2Fsrc~2544287/revisions/7/patch?download',
+  'https://chromium-review.googlesource.com/changes/chromium%2Fsrc~2544287/revisions/8/patch?download',
 ];
 
 /**
