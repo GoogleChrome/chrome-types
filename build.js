@@ -31,6 +31,10 @@ import log from 'fancy-log';
 import chalk from 'chalk';
 
 
+const {pathname: __filename} = new URL(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+
 const definitionPaths = [
   'extensions/common/api',
   'chrome/common/extensions/api',
@@ -135,7 +139,9 @@ async function run(target, revision) {
     const args = ['python', 'tools/json_schema_compiler/compiler.py', '-g', 'tsdoc', p];
     const {code, out} = await exec(args, toolsTarget);
     if (code) {
-      throw new Error(`could not convert: ${p}`);
+      console.warn(out);
+      log(`Could not convert "${chalk.green(p)}" ${code}`);
+      return '';  // skip
     }
     const s = out.toString('utf-8');
 
@@ -144,7 +150,7 @@ async function run(target, revision) {
 
     const config = extractConfig(id, features);
     if (config === null) {
-      console.warn('Skipping', namespaceName, '...');
+      log('Skipping', chalk.green(namespaceName), '...');
       return '';  // do nothing with this API
     }
 
@@ -206,19 +212,18 @@ async function start({version = 0} = {}) {
     revision = hash;
     log(`Fetching for Chrome ${chalk.red(version)}, revision ${chalk.red(revision)}...`);
 
-    outputDir = path.join(outputDir, 'version', version);
+    outputDir = path.join(outputDir, `version/${version}`);
   }
 
   const generatedString = `// Generated on ${new Date()}\n\n`;
-
-  const {pathname: __filename} = new URL(import.meta.url);
-  const __dirname = path.dirname(__filename);
 
   const preamble = await fsPromises.readFile(path.join(__dirname, 'preamble.d.ts'));
   const {apps, extensions} = await run(path.join(__dirname, '.work'), revision);
 
   log(`Generated ${chalk.blue(extensions.length)} extensions APIs`);
   log(`Generated ${chalk.blue(apps.length)} apps APIs`);
+
+  await fsPromises.mkdir(outputDir, {recursive: true});
 
   await fsPromises.writeFile(path.join(outputDir, 'index.d.ts'),
       preamble + generatedString + extensions.join('\n'));
@@ -227,8 +232,19 @@ async function start({version = 0} = {}) {
       preamble + generatedString + apps.join('\n'));
 }
 
+// Options:
+//   --version xx      to fetch a specific version, rather than master
+//   --all             to try all versions below the specified version
+const args = mri(process.argv.slice(2), {
+  boolean: ['all'],
+});
+let version = Math.floor(+args.version || 0);
 
-const args = mri(argv.slice(2));
-const version = +args.version || 0;
-await start({version});
-
+if (args.all) {
+  while (version > 0) {
+    await start({version});
+    --version;
+  }
+} else {
+  await start({version});
+}
