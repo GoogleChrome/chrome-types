@@ -16,100 +16,37 @@
  */
 
 
-import {fetchAndCache} from './lib/fetch-cache.js';
-import zlib from 'zlib';
-import tar from 'tar-stream';
+import {fetchAllTo} from './src/chrome-work.js';
+import {cache, networkFetcher} from './lib/cache.js';
 import {promises as fsPromises} from 'fs';
 import path from 'path';
-import stream from 'stream';
 import childProcess from 'child_process';
 import {tasks} from './lib/tasks.js';
 import {extractNamespaceName} from './lib/typedoc-helper.js';
 import fg from 'fast-glob';
 import {extractConfig, loadFeatures} from './lib/features.js';
+import mri from 'mri';
+import {chromeVersions} from './src/versions.js';
+import log from 'fancy-log';
+import chalk from 'chalk';
+
 
 const definitionPaths = [
   'extensions/common/api',
   'chrome/common/extensions/api',
 ];
 
-const allPaths = [
-  // Tooling required to parse JSON/IDL
+const toolsPaths = [
   'tools/json_schema_compiler',
   'tools/json_comment_eater',
   'ppapi/generators',
   'third_party/ply',
-
-  // JSON/IDL themselves
-  ...definitionPaths,
 ];
 
 const patchesToApply = [
   // This is the patch out to create TSDoc types.
   'https://chromium-review.googlesource.com/changes/chromium%2Fsrc~2544287/revisions/8/patch?download',
 ];
-
-/**
- * Fetch the specified part of the Chromium source tree into the target work path.
- *
- * @param {string} targetPath target work folder to extract to
- * @param {string} chromePath chrome subtree path
- * @return {!Promise<void>}
- */
-async function fetchAndPrepare(targetPath, chromePath) {
-  const extractPath = path.join(targetPath, chromePath);
-  await fsPromises.mkdir(extractPath, {recursive: true});
-
-  const url = `https://chromium.googlesource.com/chromium/src/+archive/master/${chromePath}.tar.gz`;
-  const gzipBytes = await fetchAndCache(url);
-
-  const bytes = await new Promise((resolve, reject) => {
-    zlib.gunzip(gzipBytes, (err, result) => err ? reject(err) : resolve(result));
-  });
-
-  const writes = [];
-
-  /**
-   * @param {string} name
-   * @param {Buffer} buffer
-   */
-  const writeFile = (name, buffer) => {
-    const task = async () => {
-      const writePath = path.join(extractPath, name);
-      await fsPromises.mkdir(path.dirname(writePath), {recursive: true});
-      await fsPromises.writeFile(writePath, buffer);
-    };
-    writes.push(task());
-  }
-
-  await new Promise((resolve, reject) => {
-    const extract = tar.extract();
-
-    extract.on('entry', (header, stream, next) => {
-      const chunks = [];
-
-      stream.on('error', reject);
-      stream.on('data', (chunk) => chunks.push(chunk));
-      stream.on('end', () => {
-        if (!header.name.endsWith('/')) {
-          writeFile(header.name, Buffer.concat(chunks));
-        }
-        next();
-      });
-      stream.resume();
-    });
-
-    extract.on('error', reject);
-    extract.on('finish', () => resolve());
-
-    const readable = new stream.Readable();
-    readable.push(bytes);
-    readable.push(null);
-    readable.pipe(extract);
-  });
-
-  await Promise.all(writes);
-}
 
 /**
  * @param {string[]} args
@@ -146,38 +83,36 @@ function exec(args, cwd, stdin=undefined) {
  * Run the types generation process.
  *
  * @param {string} target temporary folder to use (will be removed before start)
+ * @param {string} revision to fetch APIs at
  */
-async function run(target) {
+async function run(target, revision) {
+  const toolsTarget = path.join(target, 'tools');
+  const definitionsTarget = path.join(target, 'defs');
+
   await fsPromises.rmdir(target, {recursive: true});
 
-  allPaths.sort();
-  await Promise.all(allPaths.map((chromePath, i) => {
-    const previousPaths = allPaths.slice(0, i);
-    for (const previous of previousPaths) {
-      if (chromePath.startsWith(previous + '/')) {
-        return; // skip, we have this one
-      }
-    }
-    return fetchAndPrepare(target, chromePath);
-  }));
+  await fetchAllTo(toolsTarget, toolsPaths);
+  await fetchAllTo(definitionsTarget, definitionPaths, revision);
 
-  // Apply patches.
+  // Apply patches to tools.
   for (const patchUrl of patchesToApply) {
-    const base64PatchBytes = await fetchAndCache(patchUrl);
-    const output = Buffer.from(base64PatchBytes.toString('utf-8'), 'base64').toString('utf-8');
+    const buffer = await cache(patchUrl, networkFetcher(patchUrl, (buffer) => {
+      return Buffer.from(buffer.toString('utf-8'), 'base64');
+    }));
+    const output = buffer.toString('utf-8');
 
     const args = ['patch', '-s', '-p1'];
-    await exec(args, target, output);
+    await exec(args, toolsTarget, output);
   }
 
   // Find all features files and combine them.
-  const features = await loadFeatures(definitionPaths.map((p) => path.join(target, p)));
+  const features = await loadFeatures(definitionPaths.map((p) => path.join(definitionsTarget, p)));
 
   // Create a sorted list of source JSON/IDL files that can be processed by
   // this tool.
   const definitions = [];
   for (const definitionPath of definitionPaths) {
-    const p = path.join(target, definitionPath);
+    const p = path.join(definitionsTarget, definitionPath);
 
     // We need to glob subfolders as "devtools" contains inner JSON files.
     const list = fg.sync('**/*.{json,idl}', {cwd: p}).filter((p) => {
@@ -195,10 +130,10 @@ async function run(target) {
   // Perform compilation in parallel.
   // Testing on an iMac Pro brings this from 13s => 3s.
   const extracted = await tasks(definitions, async ({definitionPath, filename}) => {
-    const p = path.join(definitionPath, filename);
+    const p = path.join(definitionsTarget, definitionPath, filename);
 
     const args = ['python', 'tools/json_schema_compiler/compiler.py', '-g', 'tsdoc', p];
-    const {code, out} = await exec(args, target);
+    const {code, out} = await exec(args, toolsTarget);
     if (code) {
       throw new Error(`could not convert: ${p}`);
     }
@@ -257,18 +192,43 @@ async function run(target) {
   return {apps, extensions};
 }
 
-const generatedString = `// Generated on ${new Date()}\n\n`;
 
-const {pathname: __filename} = new URL(import.meta.url);
-const __dirname = path.dirname(__filename);
+async function start({version = 0} = {}) {
+  let revision = 'master';
+  let outputDir = path.join(__dirname, 'npm');
 
-const preamble = await fsPromises.readFile(path.join(__dirname, 'preamble.d.ts'));
-const {apps, extensions} = await run(path.join(__dirname, '.work'));
+  if (version !== 0) {
+    const allVersions = await chromeVersions();
+    if (!allVersions.has(version)) {
+      throw new Error(`could not find Chrome ${version}`);
+    }
+    const {hash} = allVersions.get(version);
+    revision = hash;
+    log(`Fetching for Chrome ${chalk.red(version)}, revision ${chalk.red(revision)}...`);
 
-const outputDir = path.join(__dirname, 'npm');
+    outputDir = path.join(outputDir, 'version', version);
+  }
 
-await fsPromises.writeFile(path.join(outputDir, 'index.d.ts'),
-    preamble + generatedString + extensions.join('\n'));
+  const generatedString = `// Generated on ${new Date()}\n\n`;
 
-await fsPromises.writeFile(path.join(outputDir, 'platform_app.d.ts'),
-    preamble + generatedString + apps.join('\n'));
+  const {pathname: __filename} = new URL(import.meta.url);
+  const __dirname = path.dirname(__filename);
+
+  const preamble = await fsPromises.readFile(path.join(__dirname, 'preamble.d.ts'));
+  const {apps, extensions} = await run(path.join(__dirname, '.work'), revision);
+
+  log(`Generated ${chalk.blue(extensions.length)} extensions APIs`);
+  log(`Generated ${chalk.blue(apps.length)} apps APIs`);
+
+  await fsPromises.writeFile(path.join(outputDir, 'index.d.ts'),
+      preamble + generatedString + extensions.join('\n'));
+
+  await fsPromises.writeFile(path.join(outputDir, 'platform_app.d.ts'),
+      preamble + generatedString + apps.join('\n'));
+}
+
+
+const args = mri(argv.slice(2));
+const version = +args.version || 0;
+await start({version});
+
