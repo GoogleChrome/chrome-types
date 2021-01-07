@@ -49,7 +49,7 @@ const toolsPaths = [
 
 const patchesToApply = [
   // This is the patch out to create TSDoc types.
-  'https://chromium-review.googlesource.com/changes/chromium%2Fsrc~2544287/revisions/8/patch?download',
+  'https://chromium-review.googlesource.com/changes/chromium%2Fsrc~2544287/revisions/14/patch?download',
 ];
 
 /**
@@ -90,13 +90,10 @@ function exec(args, cwd, stdin=undefined) {
  * @param {string} revision to fetch APIs at
  */
 async function run(target, revision) {
-  const toolsTarget = path.join(target, 'tools');
-  const definitionsTarget = path.join(target, 'defs');
-
   await fsPromises.rmdir(target, {recursive: true});
 
-  await fetchAllTo(toolsTarget, toolsPaths);
-  await fetchAllTo(definitionsTarget, definitionPaths, revision);
+  await fetchAllTo(target, toolsPaths);
+  await fetchAllTo(target, definitionPaths, revision);
 
   // Apply patches to tools.
   for (const patchUrl of patchesToApply) {
@@ -106,17 +103,18 @@ async function run(target, revision) {
     const output = buffer.toString('utf-8');
 
     const args = ['patch', '-s', '-p1'];
-    await exec(args, toolsTarget, output);
+    await exec(args, target, output);
+    log(`Patched with ${chalk.green(patchUrl)}`);
   }
 
   // Find all features files and combine them.
-  const features = await loadFeatures(definitionPaths.map((p) => path.join(definitionsTarget, p)));
+  const features = await loadFeatures(definitionPaths.map((p) => path.join(target, p)));
 
   // Create a sorted list of source JSON/IDL files that can be processed by
   // this tool.
   const definitions = [];
   for (const definitionPath of definitionPaths) {
-    const p = path.join(definitionsTarget, definitionPath);
+    const p = path.join(target, definitionPath);
 
     // We need to glob subfolders as "devtools" contains inner JSON files.
     const list = fg.sync('**/*.{json,idl}', {cwd: p}).filter((p) => {
@@ -134,17 +132,19 @@ async function run(target, revision) {
   // Perform compilation in parallel.
   // Testing on an iMac Pro brings this from 13s => 3s.
   const extracted = await tasks(definitions, async ({definitionPath, filename}) => {
-    const p = path.join(definitionsTarget, definitionPath, filename);
+    const rel = path.join(definitionPath, filename);
+    const p = path.join(target, rel);
 
     const args = ['python', 'tools/json_schema_compiler/compiler.py', '-g', 'tsdoc', p];
-    const {code, out} = await exec(args, toolsTarget);
-    if (code) {
-      console.warn(out);
-      log(`Could not convert "${chalk.green(p)}" ${code}`);
-      return '';  // skip
-    }
+    const {code, out} = await exec(args, target);
     const s = out.toString('utf-8');
+    if (code || s.trim().length === 0) {
+      console.warn(out);
+      log(`Could not convert "${chalk.green(rel)}" ${code}`);
+      return {isAppApi: false, isExtensionApi: false, generated: ''};  // skip
+    }
 
+    log(`Opening "${chalk.green(rel)}"...`);
     const namespaceName = extractNamespaceName(s);
     const id = namespaceName.replace(/^chrome\./, '');
 
