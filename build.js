@@ -31,6 +31,9 @@ import log from 'fancy-log';
 import chalk from 'chalk';
 
 
+const debug = false;
+
+
 const {pathname: __filename} = new URL(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -38,6 +41,7 @@ const __dirname = path.dirname(__filename);
 const definitionPaths = [
   'extensions/common/api',
   'chrome/common/extensions/api',
+  'chrome/common/apps/platform_apps/api',
 ];
 
 const toolsPaths = [
@@ -49,7 +53,7 @@ const toolsPaths = [
 
 const patchesToApply = [
   // This is the patch out to create TSDoc types.
-  'https://chromium-review.googlesource.com/changes/chromium%2Fsrc~2544287/revisions/14/patch?download',
+  'https://chromium-review.googlesource.com/changes/chromium%2Fsrc~2544287/revisions/15/patch?download',
 ];
 
 /**
@@ -128,6 +132,12 @@ async function run(target, revision) {
 
   // Sort by filename, not by directory.
   definitions.sort(({filename: a}, {filename: b}) => a.localeCompare(b));
+
+  if (debug) {
+    const render = '  ' + definitions.map(({filename}) => filename).join('\n  ') + '\n';
+    console.warn(definitions.length, 'raw APIs files:');
+    console.info(render);
+  }
 
   // Perform compilation in parallel.
   // Testing on an iMac Pro brings this from 13s => 3s.
