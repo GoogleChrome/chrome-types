@@ -19,19 +19,25 @@
 import {fetchAllTo} from './src/chrome-work.js';
 import {cache, networkFetcher} from './lib/cache.js';
 import {promises as fsPromises} from 'fs';
-import path from 'path';
-import childProcess from 'child_process';
+import * as path from 'path';
+import * as childProcess from 'child_process';
 import {tasks} from './lib/tasks.js';
 import {extractNamespaceName} from './lib/typedoc-helper.js';
-import fg from 'fast-glob';
 import {extractConfig, loadFeatures} from './lib/features.js';
 import mri from 'mri';
 import {chromeVersions} from './src/versions.js';
 import log from 'fancy-log';
+
+// @ts-ignore
+import fg from 'fast-glob';
+
+// @ts-ignore
 import chalk from 'chalk';
 
 
 const debug = false;
+
+const EARLY_CHROME = 35;
 
 
 const {pathname: __filename} = new URL(import.meta.url);
@@ -64,6 +70,9 @@ const patchesToApply = [
  */
 function exec(args, cwd, stdin=undefined) {
   const command = args.shift();
+  if (!command) {
+    throw new TypeError(`no command specified`)
+  }
   return new Promise((resolve) => {
     const ls = childProcess.spawn(command, args, {
       cwd,
@@ -82,7 +91,7 @@ function exec(args, cwd, stdin=undefined) {
 
     ls.on('close', (code) => {
       const out = Buffer.concat(code ? errorChunks : chunks);
-      return resolve({code, out});
+      return resolve({code: code ?? 0, out});
     });
   });
 }
@@ -151,7 +160,7 @@ async function run(target, revision) {
     if (code || s.trim().length === 0) {
       console.warn(out);
       log(`Could not convert "${chalk.green(rel)}" ${code}`);
-      return {isAppApi: false, isExtensionApi: false, generated: ''};  // skip
+      return {};
     }
 
     log(`Opening "${chalk.green(rel)}"...`);
@@ -161,7 +170,7 @@ async function run(target, revision) {
     const config = extractConfig(id, features);
     if (config === null) {
       log('Skipping', chalk.green(namespaceName), '...');
-      return '';  // do nothing with this API
+      return {};  // do nothing with this API
     }
 
     const {extensionTypes: et} = config;
@@ -215,11 +224,11 @@ async function start({version = 0} = {}) {
 
   if (version !== 0) {
     const allVersions = await chromeVersions();
-    if (!allVersions.has(version)) {
+    const data = allVersions.get(version);
+    if (data === undefined) {
       throw new Error(`could not find Chrome ${version}`);
     }
-    const {hash} = allVersions.get(version);
-    revision = hash;
+    ({hash: revision} = data);
     log(`Fetching for Chrome ${chalk.red(version)}, revision ${chalk.red(revision)}...`);
 
     outputDir = path.join(outputDir, `version/${version}`);
@@ -251,10 +260,10 @@ const args = mri(process.argv.slice(2), {
 let version = Math.floor(+args.version || 0);
 
 if (args.all) {
-  while (version > 0) {
+  while (version >= EARLY_CHROME) {
     await start({version});
     --version;
   }
 } else {
-  await start({version});
+  await start({version: 0});
 }

@@ -1,5 +1,5 @@
 import {promisify} from 'util';
-import childProcess from 'child_process';
+import * as childProcess from 'child_process';
 import semver from 'semver';
 import {cache} from '../lib/cache.js';
 import log from 'fancy-log';
@@ -48,7 +48,7 @@ export async function chromeVersions() {
 
     // Pull the major Chrome release version and treat the rest as a semver (as semver only has
     // three parts).
-    const major = parseInt(parts.shift());
+    const major = parseInt(parts.shift() ?? '');
     if (!(major > 0.0)) {
       continue;  // continue if major is NaN
     }

@@ -17,8 +17,8 @@
 import {cache, networkFetcher} from '../lib/cache.js';
 import zlib from 'zlib';
 import tar from 'tar-stream';
-import stream from 'stream';
-import path from 'path';
+import * as stream from 'stream';
+import * as path from 'path';
 import {promises as fsPromises} from 'fs';
 import log from 'fancy-log';
 import chalk from 'chalk';
@@ -57,7 +57,7 @@ export async function fetchAllTo(targetPath, chromePaths, revision = 'master') {
  * @param {string} targetPath target work folder to extract to
  * @param {string} chromePath chrome subtree path
  * @param {string=} revision revision to fetch
- * @return {!Promise<void>}
+ * @return {Promise<void>}
  */
 export async function fetchTo(targetPath, chromePath, revision = 'master') {
   const extractPath = path.join(targetPath, chromePath);
@@ -70,7 +70,13 @@ export async function fetchTo(targetPath, chromePath, revision = 'master') {
       zlib.gunzip(buffer, (err, result) => err ? reject(err) : resolve(result));
     });
   };
-  const bytes = await cache(`${url}#decompressed`, networkFetcher(url, transform));
+  let bytes;
+  try {
+    bytes = await cache(`${url}#decompressed`, networkFetcher(url, transform));
+  } catch (e) {
+    // ignore! Probably missing at this revision!
+    return;
+  }
 
   const writes = [];
 
@@ -105,7 +111,7 @@ export async function fetchTo(targetPath, chromePath, revision = 'master') {
     });
 
     extract.on('error', reject);
-    extract.on('finish', () => resolve());
+    extract.on('finish', () => resolve(undefined));
 
     const readable = new stream.Readable();
     readable.push(bytes);
