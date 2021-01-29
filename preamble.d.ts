@@ -22,6 +22,8 @@ interface FileEntry extends Entry {}
 interface FileSystem {}
 interface LocalMediaStream {}
 
+type DOMFileSystem = FileSystem;
+
 declare namespace chrome {
   // TODO: This fixes devtools' types which refer to 'global'.
   type global = typeof Window;
