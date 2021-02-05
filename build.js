@@ -121,10 +121,22 @@ async function run(target, revision) {
   // Find all features files and combine them.
   const features = await loadFeatures(definitionPaths.map((p) => path.join(target, p)));
 
+  // TODO(samthor): Demo for analysis
   for (const api of features.allApis()) {
     const result = features.expand(api).test();
-    if (result) {
-      console.info(api, 'got', result);
+    if (result.length === 0) {
+      continue;
+    }
+
+    console.info();
+    if (result.length === 1) {
+      console.info(api, ':');
+      console.info(result[0]);
+      continue;
+    }
+    console.info(api, ':', result.length);
+    for (const r of result) {
+      console.info('-', r);
     }
   }
 
