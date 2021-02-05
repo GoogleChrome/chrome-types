@@ -3,3 +3,4 @@
 .work
 node_modules/
 npm/*.d.ts
+npm/version/
