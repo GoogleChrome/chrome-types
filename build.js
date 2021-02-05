@@ -23,7 +23,7 @@ import * as path from 'path';
 import * as childProcess from 'child_process';
 import {tasks} from './lib/tasks.js';
 import {extractNamespaceName, insertTagsAtNamespace} from './lib/typedoc-helper.js';
-import {extractConfig, loadFeatures} from './lib/features-v2.js';
+import {loadFeatures} from './lib/features.js';
 import mri from 'mri';
 import {chromeVersions} from './src/versions.js';
 import log from 'fancy-log';
@@ -121,27 +121,6 @@ async function run(target, revision) {
   // Find all features files and combine them.
   const features = await loadFeatures(definitionPaths.map((p) => path.join(target, p)));
 
-  // TODO(samthor): Demo for analysis
-  for (const api of features.allApis()) {
-    const result = features.expand(api).test();
-    if (result.length === 0) {
-      continue;
-    }
-
-    console.info();
-    if (result.length === 1) {
-      console.info(api, ':');
-      console.info(result[0]);
-      continue;
-    }
-    console.info(api, ':', result.length);
-    for (const r of result) {
-      console.info('-', r);
-    }
-  }
-
-  throw 1;
-
   // Create a sorted list of source JSON/IDL files that can be processed by
   // this tool.
   const definitions = [];
@@ -167,40 +146,53 @@ async function run(target, revision) {
     console.info(render);
   }
 
+  const skippedNamespaces = [];
+
   // Perform compilation in parallel.
   // Testing on an iMac Pro brings this from 13s => 3s.
-  const extracted = await tasks(definitions, async ({definitionPath, filename}) => {
+  const extractedOrVoid = await tasks(definitions, async ({definitionPath, filename}) => {
     const rel = path.join(definitionPath, filename);
     const p = path.join(target, rel);
 
     const args = ['python', 'tools/json_schema_compiler/compiler.py', '-g', 'tsdoc', p];
     const {code, out} = await exec(args, target);
     const s = out.toString('utf-8');
-    if (code || s.trim().length === 0) {
-      console.warn(out);
-      log(`Could not convert "${color.green(rel)}" ${code}`);
-      return {};
+    if (code) {
+      log(`Error converting (${code}): \"${target}\"`);
+      return;
+    }
+    if (!s.trim().length) {
+      return;
     }
 
-    log(`Opening "${color.green(rel)}"...`);
+    // TODO(samthor): Expand specifically for extension or apps, since we do generate unique .d.ts.
     const namespaceName = extractNamespaceName(s);
-    const id = namespaceName.replace(/^chrome\./, '');
-
-    const config = extractConfig(id, features);
-    if (config === null) {
-      log('Skipping', color.green(namespaceName), '...');
-      return {};  // do nothing with this API
+    const config = features.expand(`api:${namespaceName}`);
+    if (!config) {
+      skippedNamespaces.push(namespaceName);
+      return;
     }
-
+    if (namespaceName.endsWith('Private') || namespaceName.endsWith('Internal') || namespaceName === 'idltest') {
+      skippedNamespaces.push(namespaceName);
+      return;
+    }
     const {extensionTypes: et} = config;
 
     // FIXME(samthor): 'usb' is not marked as an extension API but is in fact used by
     // 'printerProviders' purely as a type.
-    const isAlwaysExtensionApi = (id === 'usb');
+    const isAlwaysExtensionApi = (namespaceName === 'usb');
+
+    // TODO(samthor): 'tabs' is not marked as an Apps API but is used by various types.
+    const isAlwaysAppApi = (namespaceName === 'tabs');
 
     // nb. Most Apps APIs are marked correctly; 'chrome.tabs' is only marked legacy_packaged_app.
-    const isAppApi = et.size === 0 || et.has('platform_app') || et.has('legacy_packaged_app');
-    const isExtensionApi = et.size === 0 || et.has('extension') || isAlwaysExtensionApi;
+    const isAppApi = isAlwaysAppApi || et.includes('all') || et.includes('platform_app') || et.includes('legacy_packaged_app');
+    const isExtensionApi = isAlwaysExtensionApi || et.includes('all') || et.includes('extension');
+
+    if (!isAppApi && !isExtensionApi) {
+      skippedNamespaces.push(namespaceName);
+      return;
+    }
 
     const tags = [];
     if (config.channel === 'beta') {
@@ -216,21 +208,38 @@ async function run(target, revision) {
     });
 
     const generated = insertTagsAtNamespace(s, tags);
-    return {generated, isAppApi, isExtensionApi};
+    return {config, namespaceName, generated, isAppApi, isExtensionApi};
   });
+  const extracted = /** @type {NonNullable<typeof extractedOrVoid[0]>[]} */ (extractedOrVoid.filter(Boolean));
+
+  log(`Skipped ${color.blue('' + skippedNamespaces.length)} namespaces:`);
+  for (const namespaceName of skippedNamespaces) {
+    log(`  - ${color.green(namespaceName)}`);
+  }
+  log(`Generated ${color.blue('' + extracted.length)} namespaces:`);
 
   // We generate two output files: one contains APIs supported by platform apps, and one contains
   // APIs supported by extensions.
-
   const apps = [];
   const extensions = [];
-  for (const {generated, isAppApi, isExtensionApi} of extracted) {
-    if (isAppApi) {
-      apps.push(generated);
-    }
+  for (const {namespaceName, config, generated, isAppApi, isExtensionApi} of extracted) {
+    const modes = [];
+
     if (isExtensionApi) {
       extensions.push(generated);
+      modes.push('extension');
     }
+    if (isAppApi) {
+      apps.push(generated);
+      modes.push('app');
+    }
+
+    const parts = [`${color.green(namespaceName)}`, `(${modes.join(', ')})`];
+    if (config.channel !== 'stable') {
+      parts.push(color.magenta(config.channel));
+    }
+    log(`  - ${parts.join(' ')}`);
+
   }
   return {apps, extensions};
 }

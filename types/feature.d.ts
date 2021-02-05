@@ -73,3 +73,17 @@ export interface Feature {
 export interface IdFeature extends Feature {
   id: string;
 }
+
+export interface FlatFeature {
+  permissions: string[];
+  manifestKeys: string[];
+  behaviors: string[];
+  channel: Channel;
+  commandLineSwitches: string[];
+  componentExtensionsAutoGranted: boolean;
+  disallowForServiceWorkers: boolean;
+  internal: boolean;
+  contexts: (Context | All)[],
+  extensionTypes: (ExtensionType | All)[];
+  platforms: (Platform | All)[];
+}
