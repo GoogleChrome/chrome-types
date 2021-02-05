@@ -23,7 +23,7 @@ import * as path from 'path';
 import * as childProcess from 'child_process';
 import {tasks} from './lib/tasks.js';
 import {extractNamespaceName, insertTagsAtNamespace} from './lib/typedoc-helper.js';
-import {extractConfig, loadFeatures} from './lib/features.js';
+import {extractConfig, loadFeatures} from './lib/features-v2.js';
 import mri from 'mri';
 import {chromeVersions} from './src/versions.js';
 import log from 'fancy-log';
@@ -120,6 +120,15 @@ async function run(target, revision) {
 
   // Find all features files and combine them.
   const features = await loadFeatures(definitionPaths.map((p) => path.join(target, p)));
+
+  for (const api of features.allApis()) {
+    const result = features.expand(api).test();
+    if (result) {
+      console.info(api, 'got', result);
+    }
+  }
+
+  throw 1;
 
   // Create a sorted list of source JSON/IDL files that can be processed by
   // this tool.
