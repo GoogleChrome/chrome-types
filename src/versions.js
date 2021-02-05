@@ -3,7 +3,7 @@ import * as childProcess from 'child_process';
 import semver from 'semver';
 import {cache} from '../lib/cache.js';
 import log from 'fancy-log';
-import chalk from 'chalk';
+import * as color from 'colorette';
 
 const execFile = promisify(childProcess.execFile);
 const tagRe = /^refs\/tags\/(\S+)/g;
@@ -72,9 +72,13 @@ export async function chromeVersions() {
   // Reverse the order of the major releases and store in a new Map (which retains order).
   const numericReverseSort = (a, b) => b - a;
   Array.from(majorVersions.keys()).sort(numericReverseSort).map((major) => {
-    releaseMajorVersions.set(major, majorVersions.get(major));
+    const ret = majorVersions.get(major);
+    if (!ret) {
+      throw new Error(`bad assertion`);
+    }
+    releaseMajorVersions.set(major, ret);
   });
 
-  log(`Found ${chalk.blue(releaseMajorVersions.size)} major Chrome releases`);
+  log(`Found ${color.blue('' + releaseMajorVersions.size)} major Chrome releases`);
   return releaseMajorVersions;
 }

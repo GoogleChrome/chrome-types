@@ -15,13 +15,13 @@
  */
 
 import {cache, networkFetcher} from '../lib/cache.js';
-import zlib from 'zlib';
+import * as zlib from 'zlib';
 import tar from 'tar-stream';
 import * as stream from 'stream';
 import * as path from 'path';
 import {promises as fsPromises} from 'fs';
 import log from 'fancy-log';
-import chalk from 'chalk';
+import * as color from 'colorette';
 
 /**
  * Fetches all of the specified paths of the Chromium source tree to a target work path.
@@ -119,6 +119,6 @@ export async function fetchTo(targetPath, chromePath, revision = 'master') {
     readable.pipe(extract);
   });
 
-  log(`Fetched ${chalk.green(chromePath)} ${chalk.red(revision)} (${writes.length} files)`);
+  log(`Fetched ${color.green(chromePath)} ${color.red(revision)} (${writes.length} files)`);
   await Promise.all(writes);
 }

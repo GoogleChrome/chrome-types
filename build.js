@@ -22,17 +22,15 @@ import {promises as fsPromises} from 'fs';
 import * as path from 'path';
 import * as childProcess from 'child_process';
 import {tasks} from './lib/tasks.js';
-import {extractNamespaceName} from './lib/typedoc-helper.js';
+import {extractNamespaceName, insertTagsAtNamespace} from './lib/typedoc-helper.js';
 import {extractConfig, loadFeatures} from './lib/features.js';
 import mri from 'mri';
 import {chromeVersions} from './src/versions.js';
 import log from 'fancy-log';
+import * as color from 'colorette';
 
 // @ts-ignore
 import fg from 'fast-glob';
-
-// @ts-ignore
-import chalk from 'chalk';
 
 
 const debug = false;
@@ -59,7 +57,7 @@ const toolsPaths = [
 
 const patchesToApply = [
   // This is the patch out to create TSDoc types.
-  'https://chromium-review.googlesource.com/changes/chromium%2Fsrc~2544287/revisions/15/patch?download',
+  'https://chromium-review.googlesource.com/changes/chromium%2Fsrc~2544287/revisions/16/patch?download',
 ];
 
 /**
@@ -117,7 +115,7 @@ async function run(target, revision) {
 
     const args = ['patch', '-s', '-p1'];
     await exec(args, target, output);
-    log(`Patched with ${chalk.green(patchUrl)}`);
+    log(`Patched with ${color.green(patchUrl)}`);
   }
 
   // Find all features files and combine them.
@@ -159,17 +157,17 @@ async function run(target, revision) {
     const s = out.toString('utf-8');
     if (code || s.trim().length === 0) {
       console.warn(out);
-      log(`Could not convert "${chalk.green(rel)}" ${code}`);
+      log(`Could not convert "${color.green(rel)}" ${code}`);
       return {};
     }
 
-    log(`Opening "${chalk.green(rel)}"...`);
+    log(`Opening "${color.green(rel)}"...`);
     const namespaceName = extractNamespaceName(s);
     const id = namespaceName.replace(/^chrome\./, '');
 
     const config = extractConfig(id, features);
     if (config === null) {
-      log('Skipping', chalk.green(namespaceName), '...');
+      log('Skipping', color.green(namespaceName), '...');
       return {};  // do nothing with this API
     }
 
@@ -183,21 +181,20 @@ async function run(target, revision) {
     const isAppApi = et.size === 0 || et.has('platform_app') || et.has('legacy_packaged_app');
     const isExtensionApi = et.size === 0 || et.has('extension') || isAlwaysExtensionApi;
 
-    const prefixLines = [];
-
+    const tags = [];
     if (config.channel === 'beta') {
-      prefixLines.push('@beta');
+      tags.push('@beta');
     } else if (config.channel === 'dev') {
-      prefixLines.push('@alpha');
+      tags.push('@alpha');
     }
     config.platforms.forEach((platform) => {
-      prefixLines.push(`@chrome-platform ${platform}`);
+      tags.push(`@chrome-platform ${platform}`);
     });
     config.permissions.forEach((permission) => {
-      prefixLines.push(`@chrome-permission ${permission}`);
+      tags.push(`@chrome-permission ${permission}`);
     });
 
-    const generated = s.replace(' */', prefixLines.map((line) => ` * ${line}\n`).join('') + ' */');
+    const generated = insertTagsAtNamespace(s, tags);
     return {generated, isAppApi, isExtensionApi};
   });
 
@@ -229,7 +226,7 @@ async function start({version = 0} = {}) {
       throw new Error(`could not find Chrome ${version}`);
     }
     ({hash: revision} = data);
-    log(`Fetching for Chrome ${chalk.red(version)}, revision ${chalk.red(revision)}...`);
+    log(`Fetching for Chrome ${color.red('' + version)}, revision ${color.red(revision)}...`);
 
     outputDir = path.join(outputDir, `version/${version}`);
   }
@@ -239,8 +236,8 @@ async function start({version = 0} = {}) {
   const preamble = await fsPromises.readFile(path.join(__dirname, 'preamble.d.ts'));
   const {apps, extensions} = await run(path.join(__dirname, '.work'), revision);
 
-  log(`Generated ${chalk.blue(extensions.length)} extensions APIs`);
-  log(`Generated ${chalk.blue(apps.length)} apps APIs`);
+  log(`Generated ${color.blue('' + extensions.length)} extensions APIs`);
+  log(`Generated ${color.blue('' + apps.length)} apps APIs`);
 
   await fsPromises.mkdir(outputDir, {recursive: true});
 
