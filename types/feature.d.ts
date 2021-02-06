@@ -1,3 +1,4 @@
+import { Session } from "inspector";
 
 export type FeatureFile = {[name: string]: Feature|Feature[]};
 
@@ -86,4 +87,5 @@ export interface FlatFeature {
   contexts: (Context | All)[],
   extensionTypes: (ExtensionType | All)[];
   platforms: (Platform | All)[];
+  sessionTypes: (SessionType | All)[];
 }

@@ -180,10 +180,11 @@ async function run(target, revision) {
 
     // FIXME(samthor): 'usb' is not marked as an extension API but is in fact used by
     // 'printerProviders' purely as a type.
-    const isAlwaysExtensionApi = (namespaceName === 'usb');
+    const isAlwaysExtensionApi = ['usb'].includes(namespaceName);
 
-    // TODO(samthor): 'tabs' is not marked as an Apps API but is used by various types.
-    const isAlwaysAppApi = (namespaceName === 'tabs');
+    // TODO(samthor): 'tabs' is not marked as an Apps API but is used by various types (and it
+    // depends on 'window).
+    const isAlwaysAppApi = ['windows', 'tabs'].includes(namespaceName);
 
     // nb. Most Apps APIs are marked correctly; 'chrome.tabs' is only marked legacy_packaged_app.
     const isAppApi = isAlwaysAppApi || et.includes('all') || et.includes('platform_app') || et.includes('legacy_packaged_app');
