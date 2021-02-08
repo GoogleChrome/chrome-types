@@ -17,10 +17,9 @@
 import {promisify} from 'util';
 import * as childProcess from 'child_process';
 import semver from 'semver';
-import {cache} from './cache.js';
+import {cache, networkFetcher} from './cache.js';
 import * as color from 'colorette';
 import * as featureTypes from '../../../types/feature.js';
-import fetch from 'node-fetch';
 
 const execFile = promisify(childProcess.execFile);
 const tagRe = /^refs\/tags\/(\S+)/g;
@@ -113,11 +112,14 @@ export async function chromeVersions(log) {
 }
 
 
+const omahaProxyCache = networkFetcher('https://omahaproxy.appspot.com/all.json')
+
+
 /**
  * @param {(v: string) => void} log helper
  */
 export async function releaseDates(log) {
-  const response = await fetch('https://omahaproxy.appspot.com/all.json');
+  const response = await omahaProxyCache();
 
   /**
    * @type {{
@@ -130,7 +132,7 @@ export async function releaseDates(log) {
    *   }[],
    * }[]}
    * */
-  const data = await response.json();
+  const data = JSON.parse(response.toString('utf-8'));
   const singleRow = data.find(({os}) => os === 'mac');
   if (!singleRow) {
     throw new Error(`could not find single-plat versions`)
