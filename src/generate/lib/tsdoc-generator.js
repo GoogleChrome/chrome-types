@@ -19,6 +19,10 @@ import {tasks, exec} from './runners.js';
 import {extractNamespaceName} from './typedoc-helper.js';
 import fg from 'fast-glob';
 import * as path from 'path';
+import * as fs from 'fs';
+
+
+const probablyIgnoredSource = /_(private|internal)\.(json|idl)$/;
 
 
 /**
@@ -30,11 +34,27 @@ import * as path from 'path';
  */
 async function invokeCompiler(root, rel) {
   const args = ['python', 'tools/json_schema_compiler/compiler.py', '-g', 'tsdoc', rel];
-  const {code, out} = await exec(args, root);
-  const s = out.toString('utf-8');
+  let {code, out} = await exec(args, root);
+
+  // Sometimes this is because Python barfs on ascii. Sigh.
   if (code) {
+    const raw = fs.readFileSync(path.join(root, rel), 'utf-8');
+    const update = raw.replace(/[^\x00-\xFF]/g, '');
+    if (raw !== update) {
+      fs.writeFileSync(path.join(root, rel), update);
+      ({code, out} = await exec(args, root));
+    }
+  }
+
+  if (code) {
+    if (probablyIgnoredSource.test(rel)) {
+      return '';
+    }
+    console.error(out.toString('utf-8'));
     throw new Error(`Error converting (${code}): \"${rel}\"`);
   }
+
+  const s = out.toString('utf-8');
   return s.trim();
 }
 

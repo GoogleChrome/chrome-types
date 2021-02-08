@@ -103,11 +103,12 @@ if (options.tip) {
   /** @type {string} */
   let rest;
 
-  if (typeof options.release === 'number') {
+  const maybeReleaseNumber = parseInt(options.release);
+  if (maybeReleaseNumber) {
     const allVersions = await chromeVersions(log);
-    const data = allVersions.get(release);
+    const data = allVersions.get(maybeReleaseNumber);
     if (data === undefined) {
-      throw new Error(`could not find Chrome ${release}`);
+      throw new Error(`could not find Chrome ${maybeReleaseNumber}`);
     }
     revision = data.hash;
     rest = data.rest;

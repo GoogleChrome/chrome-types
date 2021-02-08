@@ -31,6 +31,7 @@ import * as os from 'os';
  * @return {!Promise<{code: number, out: Buffer}>}
  */
 export function exec(args, cwd, stdin=undefined) {
+  args = args.slice();
   const command = args.shift();
   if (!command) {
     throw new TypeError(`no command specified`)
