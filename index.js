@@ -53,27 +53,31 @@ async function wrapBuild(outputDir, version, revision) {
 
 const options = mri(process.argv.slice(2), {
   boolean: ['tip', 'help', 'quiet'],
+  string: ['output'],
   alias: {
     'help': ['h'],
     'tip': ['t'],
     'release': ['m'],
     'quiet': ['q'],
+    'output': ['o'],
   },
   default: {
     'release': 'stable',
+    'output': 'npm/',
   },
 });
 
 
 if (options.help) {
-  console.info(`Usage: ./index.js [options] <root_path>
+  console.info(`Usage: ./index.js [options]
 
-Builds TypeScript Definition files from Chromium's source. This involves a few
+Builds TypeScript Definition files from Chromium source. This involves a few
 moving parts. By default, this fetches information for the current stable.
 
 Options:
   -t, --tip            fetch tip rather than a release
-  -m, --release <n>    fetch the latest of a Chrome release (number OR stable, beta, dev)
+  -m, --release <n>    fetch a major release: number OR 'stable', 'beta', 'dev'
+  -o, --output         output path (default npm/)
   -q, --quiet          quiet mode
 `);
   process.exit(0);
@@ -88,7 +92,7 @@ const log = options.quiet ? () => {} : (message) => {
 
 if (options.tip) {
   // Build the very latest version without a specific Chrome version.
-  await wrapBuild('npm', 'HEAD', chromeHeadBranch);
+  await wrapBuild(options.output, 'HEAD', chromeHeadBranch);
 } else {
   /** @type {string} */
   let revision;
@@ -123,6 +127,6 @@ if (options.tip) {
   const version = `${release}.${rest}`;
 
   log(`Fetching for Chrome ${color.red(version)}, revision ${color.red(revision)}...`);
-  await wrapBuild('npm', version, revision);
+  await wrapBuild(options.output, version, revision);
   console.info(version);
 }
