@@ -1,6 +1,6 @@
 {
   "description": "TypeScript definition builder for Chrome extensions",
-  "devDependencies": {
+  "dependencies": {
     "@types/node": "^14.14.22",
     "colorette": "^1.2.1",
     "fast-glob": "^3.2.4",
