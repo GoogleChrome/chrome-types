@@ -24,7 +24,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import JSON5 from 'json5';
-import * as featureTypes from '../types/feature.js';
+import * as featureTypes from '../../../types/feature.js';
 import {
   leastRestrictiveChannel,
   mostRestrictiveChannel,

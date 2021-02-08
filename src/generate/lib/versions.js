@@ -19,7 +19,7 @@ import * as childProcess from 'child_process';
 import semver from 'semver';
 import {cache} from './cache.js';
 import * as color from 'colorette';
-import * as featureTypes from '../types/feature.js';
+import * as featureTypes from '../../../types/feature.js';
 import fetch from 'node-fetch';
 
 const execFile = promisify(childProcess.execFile);

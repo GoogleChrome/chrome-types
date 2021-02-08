@@ -20,7 +20,7 @@
  */
 
 
-import * as featureTypes from '../types/feature.js';
+import * as featureTypes from '../../../types/feature.js';
 
 
 /**

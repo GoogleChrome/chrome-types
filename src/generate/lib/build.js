@@ -23,7 +23,7 @@ import {exec} from '../lib/runners.js';
 import {insertTagsAtNamespace} from '../lib/typedoc-helper.js';
 import {loadFeatures} from '../lib/features.js';
 import * as color from 'colorette';
-import * as featureTypes from '../types/feature.js';
+import * as featureTypes from '../../../types/feature.js';
 import {generateAll} from '../lib/tsdoc-generator.js';
 import {chromeHeadBranch} from './git.js';
 
@@ -67,7 +67,11 @@ function skipNamespace(namespace) {
  * @return {Promise<{[filename: string]: string}>}
  */
 export default async function build(target, revision, log = () => {}) {
-  fs.rmSync(target, {recursive: true});
+  try {
+    fs.rmSync(target, {recursive: true});
+  } catch (e) {
+    // ignore if missing
+  }
 
   await fetchAllTo(target, toolsPaths, chromeHeadBranch, log);
   await fetchAllTo(target, definitionPaths, revision, log);
