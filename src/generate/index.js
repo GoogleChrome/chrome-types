@@ -26,9 +26,6 @@ import {chromeHeadBranch} from './lib/git.js';
 import {performance} from 'perf_hooks';
 
 
-const EARLY_CHROME = 35;
-
-
 const {pathname: __filename} = new URL(import.meta.url);
 const __dirname = path.dirname(__filename);
 
