@@ -1,12 +1,21 @@
 {
-  "description": "TypeScript definition utilities for Chrome extensions",
-  "dependencies": {},
-  "private": true,
+  "description": "Types helpers for Chrome extensions",
+  "name": "chrome-types-helpers",
   "license": "Apache-2.0",
   "type": "module",
+  "exports": {
+    "./lib/types": {
+      "import": "./lib/types/index.js",
+      "require": "./lib/types/index.cjs"
+    }
+  },
   "scripts": {
     "run:generate": "./bin/generate/index.js",
-    "check:generate": "tsc --noEmit npm/index.d.ts && tsc --noEmit npm/platform_app.d.ts"
+    "check:generate": "tsc --noEmit npm/index.d.ts && tsc --noEmit npm/platform_app.d.ts",
+    "types": "rm lib/types/*.d.ts; tsc lib/types/*.js --declaration --allowJs --emitDeclarationOnly --outDir lib/types/",
+    "rollup": "rollup lib/types/index.js -f cjs -o lib/types/index.cjs",
+    "prepublishOnly": "npm run rollup && npm run types",
+    "tests": "ava"
   },
   "repository": {
     "type": "git",
@@ -20,14 +29,20 @@
   "devDependencies": {
     "@types/node": "^14.14.22",
     "async-transforms": "^1.0.6",
+    "ava": "^3.15.0",
     "colorette": "^1.2.1",
     "fast-glob": "^3.2.4",
     "json5": "^2.1.3",
     "mri": "^1.1.6",
     "node-fetch": "^2.6.1",
+    "rollup": "^2.38.5",
     "semver": "^7.3.4",
     "tar-stream": "^2.1.4",
-    "typescript": "^4.1.3",
-    "webdev-infra": "github:GoogleChrome/webdev-infra#tsdoc-work"
+    "tmp": "^0.2.1",
+    "typescript": "^4.1.3"
+  },
+  "dependencies": {
+    "html-escaper": "^3.0.0",
+    "typedoc": "^0.20.23"
   }
 }

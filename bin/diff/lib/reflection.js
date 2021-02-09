@@ -15,7 +15,7 @@
  */
 
 
-import {generateTypeDocObject, fullName} from 'webdev-infra/lib/types';
+import {generateTypeDocObject, fullName} from '../../../lib/types';
 import * as typedocModels from 'typedoc/dist/lib/models/index.js';
 import * as path from 'path';
 import * as types from '../../../types/symbol.js';
