@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "run:generate": "./src/generate/index.js",
+    "run:generate": "./bin/generate/index.js",
     "check:generate": "tsc --noEmit npm/index.d.ts && tsc --noEmit npm/platform_app.d.ts"
   },
   "repository": {
