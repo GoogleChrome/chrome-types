@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-import {cache, networkFetcher} from '../lib/cache.js';
+import {cache, networkFetcher} from './cache.js';
 import * as zlib from 'zlib';
 import tar from 'tar-stream';
 import * as stream from 'stream';
 import * as path from 'path';
 import {promises as fsPromises} from 'fs';
-import log from 'fancy-log';
 import * as color from 'colorette';
 
 /**
@@ -28,10 +27,11 @@ import * as color from 'colorette';
  * 
  * @param {string} targetPath target work folder to extract to
  * @param {string[]} chromePaths chrome subtree paths to fetch
- * @param {string=} revision revision to fetch
+ * @param {string} revision revision to fetch
+ * @param {(v: string) => void} log helper
  * @return {!Promise<void>}
  */
-export async function fetchAllTo(targetPath, chromePaths, revision = 'master') {
+export async function fetchAllTo(targetPath, chromePaths, revision, log) {
   chromePaths = chromePaths.slice().map((chromePath) => {
     if (chromePath.endsWith('/')) {
       return chromePath.slice(0, -1);
@@ -47,7 +47,7 @@ export async function fetchAllTo(targetPath, chromePaths, revision = 'master') {
         return; // skip, we'll get this one
       }
     }
-    return fetchTo(targetPath, chromePath, revision);
+    return fetchTo(targetPath, chromePath, revision, log);
   }));
 }
 
@@ -56,10 +56,11 @@ export async function fetchAllTo(targetPath, chromePaths, revision = 'master') {
  *
  * @param {string} targetPath target work folder to extract to
  * @param {string} chromePath chrome subtree path
- * @param {string=} revision revision to fetch
+ * @param {string} revision revision to fetch
+ * @param {(v: string) => void} log helper
  * @return {Promise<void>}
  */
-export async function fetchTo(targetPath, chromePath, revision = 'master') {
+export async function fetchTo(targetPath, chromePath, revision, log) {
   const extractPath = path.join(targetPath, chromePath);
   await fsPromises.mkdir(extractPath, {recursive: true});
 

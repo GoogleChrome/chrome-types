@@ -14,25 +14,29 @@
  * limitations under the License.
  */
 
+
+/**
+ * @fileoverview Provides a method to load all of Chrome's feature files and operate with their
+ * possible interpretations, due to complex features.
+ */
+
+
 import * as fs from 'fs';
 import * as path from 'path';
 import JSON5 from 'json5';
-import * as featureTypes from '../types/feature.js';
-import {parentFeatureName, RestrictSet} from './features-helpers.js';
+import * as featureTypes from '../../../types/feature.js';
+import {
+  leastRestrictiveChannel,
+  mostRestrictiveChannel,
+  parentFeatureName,
+  RestrictSet,
+} from './features-helpers.js';
 
 
 /**
  * Matches feature files.
  */
 const featureNameRegexp = /^_(\w+)_features\.json$/;
-
-
-/**
- * Defines the channel availability ordering. Earlier values imply availability in later ones.
- *
- * @type {featureTypes.Channel[]}
- */
-const channelOrdering = ['stable', 'beta', 'dev', 'canary', 'trunk'];
 
 
 class FeatureTest {
@@ -208,8 +212,8 @@ class FeatureTest {
   };
 
   /**
-   * This builds a helper which allows for rapid testing and evaluation of named API features. It
-   * allows us to both check requirements as well as expand results.
+   * This expands a specific feature into its possible interpretations before reducing down to a
+   * single version useful for including along with Chrome's types.
    *
    * If the feature specified is not found, this returns a valid but empty data structure. These
    * are always permitted and have no restrictions!
@@ -218,10 +222,10 @@ class FeatureTest {
    * and are returned a specific yes/no as to whether they can use this feature.
    *
    * @param {string} name to expand
-   * @param {featureTypes.ExtensionType} preferType
+   * @param {featureTypes.ExtensionType=} preferType if ambiguous, prefer this type
    * @return {featureTypes.FlatFeature=}
    */
-  expand(name, preferType = 'extension') {
+  expand(name, preferType) {
     if (!(name in this.#raw)) {
       return this.#test([]);
     }
@@ -262,18 +266,18 @@ class FeatureTest {
     }
 
     const expanded = work.map(({features}) => features).filter((features) => features.length);
-    const restrictedBase = expanded.map(this.#test).filter(Boolean);
+    const restrictedBase = expanded.map(this.#test).filter((flat) => {
+      if (!flat) {
+        return;
+      }
+      return !preferType || flat.extensionTypes.includes('all') || flat.extensionTypes.includes(preferType);
+    });
 
     // Cast this as TS doesn't know we've removed nullables.
     const ambig = /** @type {NonNullable<(typeof restrictedBase[0])>[]} */ (restrictedBase);
 
     if (ambig.length <= 1) {
       return ambig[0];
-    }
-
-    const removeNonPrefer = ambig.filter(({extensionTypes}) => extensionTypes.includes(preferType));
-    if (removeNonPrefer.length === 1) {
-      return removeNonPrefer[0];
     }
 
     const removeNonKiosk = ambig.filter(({sessionTypes}) => sessionTypes.includes('all') || sessionTypes.includes('regular'));
@@ -316,14 +320,14 @@ function mergeFlat(a, b) {
    * @template T
    * @param {(T | featureTypes.All)[]} a
    * @param {(T | featureTypes.All)[]} b
-   * @return {(T | featureTypes.All)[]}
+   * @return {T[]|[featureTypes.All]}
    */
   const mergeWithAll = (a, b) => {
     if (a.includes('all') || b.includes('all')) {
       return ['all'];
     }
-    return mergeArray(a, b);
-  }
+    return /** @type {T[]} */ (mergeArray(a, b));
+  };
 
   return {
     permissions: mergeArray(a.permissions, b.permissions),
@@ -344,8 +348,9 @@ function mergeFlat(a, b) {
 
 /**
  * @param {string[]} fromPaths
+ * @return {FeatureTest}
  */
-export async function loadFeatures(fromPaths) {
+export function loadFeatures(fromPaths) {
   /** @type {featureTypes.FeatureFile} */
   const features = {};
 
@@ -375,62 +380,6 @@ export async function loadFeatures(fromPaths) {
   }
 
   return new FeatureTest(features);
-}
-
-
-/**
- * Is the request channel allowed to use the this feature based on its channel?
- *
- * @param {featureTypes.Channel} requestChannel
- * @param {featureTypes.Channel=} featureChannel
- * @return {boolean}
- */
-export function allowedChannel(requestChannel, featureChannel) {
-  const indexRequest = channelOrdering.indexOf(requestChannel);
-  const indexFeature = channelOrdering.indexOf(featureChannel ?? 'stable');
-
-  if (indexRequest === -1 || indexFeature === -1) {
-    throw new TypeError(`got bad channels: ${requestChannel} vs ${featureChannel}`);
-  }
-  return indexRequest >= indexFeature;
-}
-
-
-/**
- * Finds the least restrictive channel from the arguments.
- *
- * @param {featureTypes.Channel} channel
- * @param {...featureTypes.Channel} rest
- * @return {featureTypes.Channel}
- */
-export function leastRestrictiveChannel(channel, ...rest) {
-  let index = channelOrdering.indexOf(channel);
-
-  for (const r of rest) {
-    const cand = channelOrdering.indexOf(r);
-    index = Math.min(cand, index);
-  }
-
-  return channelOrdering[index] ?? 'stable';
-}
-
-
-/**
- * Finds the most restrictive channel from the arguments.
- *
- * @param {featureTypes.Channel} channel
- * @param {...featureTypes.Channel} rest
- * @return {featureTypes.Channel}
- */
-export function mostRestrictiveChannel(channel, ...rest) {
-  let index = channelOrdering.indexOf(channel);
-
-  for (const r of rest) {
-    const cand = channelOrdering.indexOf(r);
-    index = Math.max(cand, index);
-  }
-
-  return channelOrdering[index] ?? 'stable';
 }
 
 
