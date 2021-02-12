@@ -20,12 +20,13 @@ import {cache, networkFetcher} from '../lib/cache.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import {exec} from '../lib/runners.js';
-import {insertTagsAtNamespace} from '../lib/typedoc-helper.js';
 import {loadFeatures} from '../lib/features.js';
 import * as color from 'colorette';
 import * as featureTypes from '../../../types/feature.js';
 import {generateAll} from '../lib/tsdoc-generator.js';
 import {chromeHeadBranch} from './git.js';
+import {rewriteBlockComments} from './comment.js';
+import {buildNamespaceAwareRewrite} from './comment-rewrite.js';
 
 
 const definitionPaths = [
@@ -43,7 +44,7 @@ const toolsPaths = [
 
 const patchesToApply = [
   // This is the patch out to create TSDoc types.
-  'https://chromium-review.googlesource.com/changes/chromium%2Fsrc~2544287/revisions/16/patch?download',
+  'https://chromium-review.googlesource.com/changes/chromium%2Fsrc~2544287/revisions/17/patch?download',
 ];
 
 
@@ -94,6 +95,7 @@ export default async function build(target, revision, log = () => {}) {
   // Load all TSDoc sources.
   const sources = await generateAll(target, definitionPaths);
   const unseenNamespaces = new Set(sources.map(({namespaceName}) => namespaceName));
+  const allNamespaceNames = [...unseenNamespaces];
   log(`Parsed potential ${color.blue('' + unseenNamespaces.size)} namespaces`)
 
   /**
@@ -137,11 +139,23 @@ export default async function build(target, revision, log = () => {}) {
       }
       logParts.push(color.magenta(config.channel))
     }
-    config.platforms.forEach((platform) => tags.push(`@chrome-platform ${platform}`));
-    config.permissions.forEach((permission) => tags.push(`@chrome-permission ${permission}`));
+
+    const rewrite = buildNamespaceAwareRewrite(namespaceName, allNamespaceNames);
+    source = rewriteBlockComments(source, (comment, tags) => {
+      tags.forEach((tag) => {
+        tag.value = rewrite(tag.value);
+      });
+
+      if (tags.find(({name}) => name === 'chrome-namespace')) {
+        config?.platforms.forEach((platform) => tags.push({name: 'chrome-platform', value: platform}));
+        config?.permissions.forEach((permission) => tags.push({name: 'chrome-permission', value: permission}));
+      }
+
+      return rewrite(comment);
+    });
 
     log('  - ' + logParts.join(' '));
-    return insertTagsAtNamespace(source, tags) + '\n';
+    return source + '\n';
   };
 
   /**
