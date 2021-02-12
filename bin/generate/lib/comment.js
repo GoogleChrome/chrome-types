@@ -15,7 +15,7 @@
  */
 
 
-const hrefRegexp = /<a(\s+.*?)href=(["'])(.*?)\2(.*?)>(.*?)<\/a>/gm;
+const hrefRegexp = /<a(\s+.*?)href\s*=\s*(["'])(.*?)\2(.*?)>(.*?)<\/a>/gm;
 
 
 /**

@@ -26,6 +26,9 @@ import {rewriteCommentHrefs} from './comment.js';
 const historicResolvedPrefixes = ['type', 'event', 'property', 'type'];
 
 
+const generateExperimentalMarkdown = false;
+
+
 /**
  * @param {string} namespaceName
  * @param {string[]} allNamespaceNames
@@ -102,26 +105,50 @@ export function buildNamespaceAwareRewrite(namespaceName, allNamespaceNames) {
 
   return (raw) => {
     // TODO(samthor): This could really do with a HTML-to-Markdown converter.
+    // There's an additional number of odd cases in the comments but writing matchers for them has
+    // only diminishing returns and adds more complexity.
 
     raw = raw.replace(/<p>/g, '\n\n');
     raw = raw.replace(/<\/p>/g, '');
-    raw = raw.replace(/<ul>/g, '\n\n<ul>\n');
-    raw = raw.replace(/<\/ul>/g, '\n</ul>\n\n');
+
+    // Remove <ul>-based lists and convert them to Markdown.
+    raw = raw.replace(/<ul>(.*?)<\/ul>/gs, (_, inner) => {
+      if (inner.includes('<ul')) {
+        throw new Error(`unsupported inner <ul> in conversion`);
+      }
+
+      if (generateExperimentalMarkdown) {
+        const items = inner.replace(/\s*<li>(.*?)<\/li>\s*/gs, (_, innerItem) => {
+          const lines = innerItem.split('\n').map((line, i) => i ? `  ${line}\n` : `* ${line}\n`);
+          return lines.join('');
+        });
+        return `\n\n${items}\n\n`;
+      } else {
+        // This just neatens up the <ul></ul> and places it in its own section.
+        const items = inner.replace(/\s*<li>(.*?)<\/li>\s*/gs, (_, innerItem) => {
+          return `<li>${innerItem}</li>\n`;
+        });
+        return `\n\n<ul>\n${items}</ul>\n\n`
+      }
+    });
 
     // This is particularly special. For some unknown reason, code samples (only in Apps docs) use
     // \n for separation but \r for actual newlines.
     raw = raw.replace(/<pre>(.*?)<\/pre>/gs, (_, inner) => {
-      // 
       const code = inner.replace(/\n/g, ' ').replace(/\r/g, '\n');
-      return `
+      if (generateExperimentalMarkdown) {
+        return `
 
 \`\`\`js
 ${code}
 \`\`\`
 `;
+      } else {
+        return `\n\n<pre>\n${code}\n</pre>\n\n`;
+      }
     });
 
-    if (raw.includes('<pre>')) {
+    if (generateExperimentalMarkdown && raw.includes('<pre>')) {
       throw new Error(`got spurious <pre>: ${raw}`)
     }
 
