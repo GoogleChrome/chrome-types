@@ -34,7 +34,7 @@ const probablyIgnoredSource = /_(private|internal)\.(json|idl)$/;
  */
 async function invokeCompiler(root, rel) {
   const args = ['python', 'tools/json_schema_compiler/compiler.py', '-g', 'tsdoc', rel];
-  let {code, out} = await exec(args, root);
+  let {code, out} = await exec(args, {cwd: root});
 
   // Sometimes this is because Python barfs on ascii. Sigh.
   if (code) {
@@ -42,7 +42,7 @@ async function invokeCompiler(root, rel) {
     const update = raw.replace(/[^\x00-\xFF]/g, '');
     if (raw !== update) {
       fs.writeFileSync(path.join(root, rel), update);
-      ({code, out} = await exec(args, root));
+      ({code, out} = await exec(args, {cwd: root}));
     }
   }
 
