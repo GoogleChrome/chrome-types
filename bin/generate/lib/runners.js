@@ -26,11 +26,12 @@ import * as os from 'os';
 
 /**
  * @param {string[]} args
- * @param {string} cwd
- * @param {string|undefined} stdin
- * @return {!Promise<{code: number, out: Buffer}>}
+ * @param {{cwd?: string, stdin?: string}} options
+ * @return {Promise<{code: number, out: Buffer}>}
  */
-export function exec(args, cwd, stdin=undefined) {
+export function exec(args, options = {}) {
+  const {cwd = process.cwd(), stdin} = options;
+
   args = args.slice();
   const command = args.shift();
   if (!command) {
@@ -41,23 +42,37 @@ export function exec(args, cwd, stdin=undefined) {
       cwd,
       shell: true,
     });
+
     const chunks = [];
-    const errorChunks = [];
+    ls.stdout.on('data', (data) => chunks.push(data));
+    ls.stderr.on('data', (data) => process.stderr.write(data));
 
     if (stdin !== undefined) {
       ls.stdin.write(stdin);
       ls.stdin.end();
     }
 
-    ls.stdout.on('data', (data) => chunks.push(data));
-    ls.stderr.on('data', (data) => errorChunks.push(data));
-
     ls.on('close', (code) => {
-      const out = Buffer.concat(code ? errorChunks : chunks);
+      const out = Buffer.concat(chunks);
       return resolve({code: code ?? 0, out});
     });
   });
 }
+
+
+/**
+ * Runs the given command, returning stdout on success or throwing an error on non-zero status.
+ *
+ * @param {string[]} args
+ * @return {Promise<string>}
+ */
+export const throwExec = async (args) => {
+  const {code, out} = await exec(args);
+  if (code) {
+    throw new Error(`failure to run (${code}): ${args.join(' ')}`);
+  }
+  return out.toString('utf-8');
+};
 
 
 /**

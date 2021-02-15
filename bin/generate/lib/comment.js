@@ -15,7 +15,15 @@
  */
 
 
-const hrefRegexp = /<a(\s+.*?)href\s*=\s*(["'])(.*?)\2(.*?)>(.*?)<\/a>/gm;
+/**
+ * This monstrosity matches <a href="">...</a> within the generated comments. It allows a variety
+ * of syntaxes:
+ *
+ *   - href with ' or "
+ *   - elements over multiple lines (i.e., 's' flag)
+ *   - additional tags to the left/right of "href"
+ */
+const hrefRegexp = /<a(\s+[^>]*?)href\s*=\s*(["'])(.*?)\2(.*?)>(.*?)<\/a>/gms;
 
 
 /**

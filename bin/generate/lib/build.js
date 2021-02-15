@@ -82,10 +82,13 @@ export default async function build(target, revision, log = () => {}) {
     const buffer = await cache(patchUrl, networkFetcher(patchUrl, (buffer) => {
       return Buffer.from(buffer.toString('utf-8'), 'base64');
     }));
-    const output = buffer.toString('utf-8');
+    const patchContent = buffer.toString('utf-8');
 
     const args = ['patch', '-s', '-p1'];
-    await exec(args, target, output);
+    const {code} = await exec(args, {cwd: target, stdin: patchContent});
+    if (code) {
+      throw new Error(`failed to patch: ${patchUrl}`);
+    }
     log(`Patched with ${color.green(patchUrl)}`);
   }
 
