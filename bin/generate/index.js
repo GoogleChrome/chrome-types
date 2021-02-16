@@ -47,16 +47,12 @@ async function wrapBuild(outputDir, version, revision, check) {
   fs.mkdirSync(outputDir, {recursive: true});
   let allContents = '';
 
-  const generatedString = `// For Chrome ${version} at ${revision}\n// Generated at ${new Date()}\n\n`;
-  const preamble = fs.readFileSync(path.join(__dirname, 'preamble.d.ts'));
-
   const files = await build(revision, log);
   for (const name in files) {
     const target = path.join(outputDir, name);
-    const contents = preamble + generatedString + files[name];
-    fs.writeFileSync(target, contents);
+    fs.writeFileSync(target,  files[name]);
 
-    allContents += contents;
+    allContents += files[name] + '\n';
 
     if (check) {
       await throwExec(['tsc', '--noEmit', target]);

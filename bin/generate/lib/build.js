@@ -72,9 +72,9 @@ export default async function build(revision, log = () => {}) {
   const t = tmp.dirSync();
 
   try {
-    return internalBuild(t.name, revision, log);
+    return await internalBuild(t.name, revision, log);
   } finally {
-    t.removeCallback();
+    fs.rmSync(t.name, {recursive: true});
   }
 }
 
@@ -207,9 +207,7 @@ async function internalBuild(target, revision, log = () => {}) {
   const expandAll = (extensionType) => {
     log(`Generating namespaces for ${color.yellow(extensionType)}:`);
 
-    const preamble = preambleNotice + `
-
-    ` + preambleTypes;
+    const preamble = `${preambleNotice}\n${preambleTypes}\n\n`;
 
     return preamble + sources.map((arg) => {
       return expand(arg, extensionType) ?? '';
