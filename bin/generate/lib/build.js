@@ -27,6 +27,7 @@ import {generateAll} from '../lib/tsdoc-generator.js';
 import {chromeHeadBranch} from './git.js';
 import {rewriteBlockComments} from './comment.js';
 import {buildNamespaceAwareRewrite} from './comment-rewrite.js';
+import * as tmp from 'tmp';
 
 
 const definitionPaths = [
@@ -60,19 +61,57 @@ function skipNamespace(namespace) {
 
 
 /**
- * Run the types generation process.
+ * Run the types generation process for a specific revision. This generates types for all matched
+ * IDL/JSON files and incorporates the relevant feature JSON files.
  *
- * @param {string} target temporary folder to use (will be cleared before start)
  * @param {string} revision to fetch APIs at
  * @param {(v: string) => void} log helper
  * @return {Promise<{[filename: string]: string}>}
  */
-export default async function build(target, revision, log = () => {}) {
+export default async function build(revision, log = () => {}) {
+  const t = tmp.dirSync();
+
+  try {
+    return internalBuild(t.name, revision, log);
+  } finally {
+    t.removeCallback();
+  }
+}
+
+
+/**
+ * @param {string} target temporary folder to work from
+ * @param {string} revision to fetch APIs at
+ * @param {(v: string) => void} log helper
+ * @return {Promise<{[filename: string]: string}>}
+ */
+async function internalBuild(target, revision, log = () => {}) {
   try {
     fs.rmSync(target, {recursive: true});
   } catch (e) {
     // ignore if missing
   }
+
+  // Prepare parts of the preamble appended to all generated files.
+  const now = new Date();
+  const {pathname: preambleTypesPath} = new URL('../preamble.d.ts', import.meta.url);
+  const preambleTypes = fs.readFileSync(preambleTypesPath, 'utf-8');
+  const preambleNotice = `/**
+ * Copyright ${now.getFullYear()} Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+`;
 
   await fetchAllTo(target, toolsPaths, chromeHeadBranch, log);
   await fetchAllTo(target, definitionPaths, revision, log);
@@ -167,7 +206,12 @@ export default async function build(target, revision, log = () => {}) {
    */
   const expandAll = (extensionType) => {
     log(`Generating namespaces for ${color.yellow(extensionType)}:`);
-    return sources.map((arg) => {
+
+    const preamble = preambleNotice + `
+
+    ` + preambleTypes;
+
+    return preamble + sources.map((arg) => {
       return expand(arg, extensionType) ?? '';
     }).join('');
   };

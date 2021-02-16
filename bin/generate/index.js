@@ -50,7 +50,7 @@ async function wrapBuild(outputDir, version, revision, check) {
   const generatedString = `// For Chrome ${version} at ${revision}\n// Generated at ${new Date()}\n\n`;
   const preamble = fs.readFileSync(path.join(__dirname, 'preamble.d.ts'));
 
-  const files = await build(path.join(__dirname, '.work'), revision, log);
+  const files = await build(revision, log);
   for (const name in files) {
     const target = path.join(outputDir, name);
     const contents = preamble + generatedString + files[name];

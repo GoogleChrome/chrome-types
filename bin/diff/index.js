@@ -16,14 +16,37 @@
  */
 
 
+import mri from 'mri';
 import * as types from '../../types/symbol.js';
 import allVersions from './lib/versions.js';
+
+
+const options = mri(process.argv.slice(2), {
+  boolean: ['help'],
+  alias: {
+    'help': ['h'],
+  },
+});
+
+
+if (options.help) {
+  console.info(`Usage: ./index.js [options]
+
+Updates the version-data.json file from versioned Chrome files.
+
+Options:
+  TODO
+`);
+  process.exit(0);
+}
+
 
 /**
  * The minimum version to look at. Notably, 39 was when Event<T> was defined, and we expect that
  * template type.
  */
 const CHROME_MIN = 39;
+
 
 // TODO(samthor): This process can work forward from previous data. For now we run it all at once
 // as it only takes about ~3 minutes on my workstation.
