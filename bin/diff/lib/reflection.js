@@ -15,7 +15,7 @@
  */
 
 
-import {generateTypeDocObject, fullName} from '../../../lib/types';
+import {generateTypeDocObject, fullName} from '../../../lib/types/index.js';
 import * as typedocModels from 'typedoc/dist/lib/models/index.js';
 import * as path from 'path';
 import * as types from '../../../types/symbol.js';
@@ -103,6 +103,7 @@ function isDeprecated(r) {
  * Finds all raw data for a specific release. Expects data to be found at:
  *   "<root>/<version>/{index,platform_app}.d.ts"
  *
+ * @param {string} root
  * @param {number} version
  * @return {Promise<{[name: string]: types.RawSymbolInfo}>}
  */
