@@ -38,6 +38,7 @@ async function invokeCompiler(root, rel) {
 
   // Sometimes this is because Python barfs on ascii. Sigh.
   if (code) {
+    console.warn('Rerunning with non-Ascii stripped...');
     const raw = fs.readFileSync(path.join(root, rel), 'utf-8');
     const update = raw.replace(/[^\x00-\xFF]/g, '');
     if (raw !== update) {

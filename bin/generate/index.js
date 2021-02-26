@@ -38,23 +38,22 @@ const singleLineCommentRegexp = /\s*\/\/.*$/gm;
 
 /**
  * @param {string} outputDir
- * @param {string} version
  * @param {string} revision
- * @param {boolean} check
+ * @param {{check: boolean, debug: boolean}} args
  * @return {Promise<string>}
  */
-async function wrapBuild(outputDir, version, revision, check) {
+async function wrapBuild(outputDir, revision, args) {
   fs.mkdirSync(outputDir, {recursive: true});
   let allContents = '';
 
-  const files = await build(revision, log);
+  const files = await build(revision, args.debug, log);
   for (const name in files) {
     const target = path.join(outputDir, name);
     fs.writeFileSync(target,  files[name]);
 
     allContents += files[name] + '\n';
 
-    if (check) {
+    if (args.check) {
       await throwExec(['tsc', '--noEmit', target]);
     }
   }
@@ -89,7 +88,7 @@ function generateLinesHash(raw) {
 
 
 const options = mri(process.argv.slice(2), {
-  boolean: ['tip', 'help', 'quiet', 'skip-check'],
+  boolean: ['tip', 'help', 'quiet', 'skip-check', 'debug'],
   string: ['output'],
   alias: {
     'help': ['h'],
@@ -98,6 +97,7 @@ const options = mri(process.argv.slice(2), {
     'quiet': ['q'],
     'output': ['o'],
     'skip-check': ['s'],
+    'debug': ['d'],
   },
   default: {
     'release': 'stable',
@@ -118,6 +118,7 @@ Options:
   -o, --output         output path (default npm/)
   -q, --quiet          quiet mode
   -s, --skip-check     skip checking with tsc
+  -d, --debug          keep work folder around
 `);
   process.exit(0);
 }
@@ -134,9 +135,14 @@ const out = {
 };
 
 
+const wrapBuildArgs = {
+  check: !options['skip-check'],
+  debug: Boolean(options.debug),
+};
+
 if (options.tip) {
   // Build the very latest version without a specific Chrome version.
-  out.build = await wrapBuild(options.output, 'HEAD', chromeHeadBranch, !options['skip-check']);
+  out.build = await wrapBuild(options.output, chromeHeadBranch, wrapBuildArgs);
 } else {
   /** @type {string} */
   let revision;
@@ -172,7 +178,7 @@ if (options.tip) {
   out.version = `${release}.${rest}`;
 
   log(`Fetching for Chrome ${color.red(out.version)}, revision ${color.red(revision)}...`);
-  out.build = await wrapBuild(options.output, out.version, revision, !options['skip-check']);
+  out.build = await wrapBuild(options.output, revision, wrapBuildArgs);
 }
 
 console.info(JSON.stringify(out));

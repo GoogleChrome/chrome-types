@@ -76,7 +76,7 @@ export function rewriteCommentHrefs(text, resolveHref) {
  * This allows for basic rewriting of block comments.
  *
  * @param {string} raw
- * @param {(comment: string, tags: {name: string, value: string}[]) => string|undefined} callback
+ * @param {(comment: string, tags: {name: string, value?: string}[]) => string|undefined} callback
  * @return {string}
  */
 export function rewriteBlockComments(raw, callback) {
@@ -113,13 +113,19 @@ export function rewriteBlockComments(raw, callback) {
     } 
 
     // Find all tags and their body content.
-    /** @type {{name: string, value: string}[]} */
+    /** @type {{name: string, value?: string}[]} */
     const tags = [];
+    /** @type {string=} */
     let tagName = undefined;
     let pendingTagLines = [];
     const maybeYieldTag = () => {
       if (tagName) {
-        tags.push({name: tagName, value: pendingTagLines.join(' ').trim()});
+        const raw = {name: tagName};
+        const value = pendingTagLines.join(' ').trim();
+        if (value) {
+          raw.value = value;
+        }
+        tags.push(raw);
       }
       tagName = undefined;
     };
@@ -141,7 +147,7 @@ export function rewriteBlockComments(raw, callback) {
     rawLines.push(...update.split('\n'));
     rawLines.push('');
     for (const {name, value} of tags) {
-      rawLines.push(...`@${name} ${value}`.split('\n'));
+      rawLines.push(...`@${name} ${value ?? ''}`.split('\n'));
     }
     // Remove any instances of 3-newlines or more (these are bigger than normal paragraph breaks).
     const rawMerged = rawLines.join('\n').replace(/\n{3,}/gm, '\n\n').trim();
