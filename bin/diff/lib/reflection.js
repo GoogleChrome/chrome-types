@@ -68,7 +68,7 @@ function findRelease(r) {
   let release = 'stable';
 
   while (r) {
-    if (!release && r.comment?.hasTag('beta')) {
+    if (r.comment?.hasTag('beta')) {
       release = 'beta';
     } else if (r.comment?.hasTag('alpha')) {
       release = 'dev';
