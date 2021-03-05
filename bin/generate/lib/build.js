@@ -204,6 +204,15 @@ async function internalBuild(target, revision, log = () => {}) {
           }
           logParts.push(color.magenta(c.channel))
         }
+
+        if (c.minManifestVersion) {
+          tags.push({name: 'chrome-manifest-min', value: '' + c.minManifestVersion});
+          logParts.push(`>=${color.yellow(`MV${c.minManifestVersion}`)}`);
+        }
+        if (c.maxManifestVersion) {
+          tags.push({name: 'chrome-manifest-max', value: '' + c.maxManifestVersion});
+          logParts.push(`<=${color.yellow(`MV${c.maxManifestVersion}`)}`);
+        }
       }
 
       return rewrite(comment);

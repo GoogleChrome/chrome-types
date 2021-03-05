@@ -153,3 +153,34 @@ export function mostRestrictiveChannel(channel, ...rest) {
 
   return channelOrdering[index] ?? 'stable';
 }
+
+
+/**
+ * Returns the highest minimum manifest version as a more restrictive operation.
+ *
+ * @param {...number} options
+ * @return {number}
+ */
+export function mergeMinManifestVersion(...options) {
+  if (options.length) {
+    return Math.max(...options) ?? 0;
+  }
+  return 0;
+}
+
+
+/**
+ * Returns the lowest maximum manifest version as a more restrictive operation. Ignores zero in the
+ * arguments. Returns zero if no other options are available.
+ *
+ * @param {...number} options
+ * @return {number}
+ */
+export function mergeMaxManifestVersion(...options) {
+  options = options.filter(Boolean);
+  if (options.length) {
+    return Math.min(...options);
+  }
+  return 0;
+}
+

@@ -27,6 +27,8 @@ import JSON5 from 'json5';
 import * as featureTypes from '../../../types/feature.js';
 import {
   leastRestrictiveChannel,
+  mergeMaxManifestVersion,
+  mergeMinManifestVersion,
   mostRestrictiveChannel,
   parentFeatureName,
   RestrictSet,
@@ -115,6 +117,9 @@ class FeatureTest {
     let disallowForServiceWorkers = false;
     let internal = false;
 
+    let minManifestVersion = 0;
+    let maxManifestVersion = 0;
+
     /** @type {Set<string>} */
     const permissions = new Set();
 
@@ -171,6 +176,9 @@ class FeatureTest {
       platforms.restrict(feature.platforms);
       sessionTypes.restrict(feature.session_types);
 
+      minManifestVersion = mergeMinManifestVersion(minManifestVersion, feature.min_manifest_version ?? 0);
+      maxManifestVersion = mergeMaxManifestVersion(maxManifestVersion, feature.max_manifest_version ?? 0);
+
       // We do NOT filter on this, because it's set for "chrome.events" and "chrome.types".
       // This is because these types don't really exist, and can't be constructed. Actually
       // internal or private types are suffixed as such, and we filter externally to this file.
@@ -208,6 +216,8 @@ class FeatureTest {
       extensionTypes: extensionTypesArray,
       platforms: platforms.get(),
       sessionTypes: sessionTypes.get(),
+      minManifestVersion,
+      maxManifestVersion,
     };
   };
 
@@ -342,6 +352,8 @@ function mergeFlat(a, b) {
     extensionTypes: mergeWithAll(a.extensionTypes, b.extensionTypes),
     platforms: mergeWithAll(a.platforms, b.platforms),
     sessionTypes: mergeWithAll(a.sessionTypes, b.sessionTypes),
+    minManifestVersion: mergeMinManifestVersion(a.minManifestVersion, b.minManifestVersion),
+    maxManifestVersion: mergeMaxManifestVersion(a.maxManifestVersion, b.maxManifestVersion),
   };
 }
 
