@@ -1,0 +1,50 @@
+{
+  "description": "Types helpers for Chrome extensions",
+  "name": "chrome-types-helpers",
+  "license": "Apache-2.0",
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "fast-glob": "^3.2.5",
+    "find-cache-dir": "^3.3.1",
+    "json5": "^2.2.0",
+    "node-fetch": "^2.6.1",
+    "tar-stream": "^2.2.0",
+    "tmp": "^0.2.1",
+    "turndown": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/mri": "^1.1.0",
+    "@types/node": "^14.14.35",
+    "@types/node-fetch": "^2.5.10",
+    "@types/semver": "^7.3.5",
+    "ava": "^3.15.0",
+    "mri": "^1.1.6",
+    "rollup": "^2.45.2",
+    "semver": "^7.3.5",
+    "typescript": "^4.2.4"
+  },
+  "main": "main.js",
+  "exports": {
+    ".": {
+      "import": "./lib/gen/main.js",
+      "require": "./lib-gen-main.cjs"
+    }
+  },
+  "types": "./types/index.d.ts",
+  "scripts": {
+    "test": "ava",
+    "rollup": "rollup --format=cjs --file=lib-gen-main.cjs -- lib/gen/main.js",
+    "prepublishOnly": "npm run rollup",
+    "prepareChromeTypes": "node ./bin/prepare-types.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GoogleChrome/chrome-types.git"
+  },
+  "author": "The Chromium Authors",
+  "bugs": {
+    "url": "https://github.com/GoogleChrome/chrome-types/issues"
+  },
+  "homepage": "https://github.com/GoogleChrome/chrome-types"
+}

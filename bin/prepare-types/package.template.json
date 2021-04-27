@@ -1,0 +1,17 @@
+{
+  "description": "TypeScript definitions for MV3+ Chrome extensions",
+  "license": "Apache-2.0",
+  "types": "index.d.ts",
+  "type": "module",
+  "name": "chrome-types",
+  "version": "0.1.x",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GoogleChrome/chrome-types.git"
+  },
+  "author": "The Chromium Authors",
+  "bugs": {
+    "url": "https://github.com/GoogleChrome/chrome-types/issues"
+  },
+  "homepage": "https://github.com/GoogleChrome/chrome-types"
+}

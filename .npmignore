@@ -1,0 +1,7 @@
+testdata/
+bin/
+tests/
+.*
+_*
+/*.d.ts
+npm-chrome-types/

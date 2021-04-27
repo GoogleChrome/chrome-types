@@ -1,0 +1,7 @@
+node_modules/
+.DS_Store
+.work/
+.cache/
+all.d.ts
+*.cjs
+bin/prepare-types/work/*
