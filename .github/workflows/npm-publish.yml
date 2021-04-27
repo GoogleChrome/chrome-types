@@ -1,0 +1,48 @@
+name: automatically publish chrome-types
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 22 * * *'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 14
+
+      - run: npm ci
+
+      - run: npm test
+
+  publish-npm:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 14
+          registry-url: https://registry.npmjs.org/
+
+      - run: npm ci
+
+      - run: npm run prepareChromeTypes
+
+      - uses: JS-DevTools/npm-publish@v1
+        with:
+          package: ./bin/prepare-types/work/package.json
+          token: ${{ secrets.NPM_TOKEN }}
+
+      # # The `prepareChromeTypes` creates a package.json in this folder if it should be published again,
+      # # otherwise it is skipped.
+      # - working-directory: ./bin/prepare-types/work
+      #   run: '(! test -f package.json) && echo "Not publishing, no package.json generated" || npm publish'
+      #   env:
+      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
