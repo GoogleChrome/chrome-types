@@ -19,10 +19,10 @@
 /**
  * Prepares information on Chrome extension APIs at the given revision.
  */
-export function prepareNamespaces(options?: MainOptions): Promise<MainResult>
+export function prepareNamespaces(options?: Partial<MainOptions>): Promise<MainResult>;
 
 
-import * as model from '../model.js';
+import * as model from '../lib/gen/model.js';
 
 
 export interface MainResult {
