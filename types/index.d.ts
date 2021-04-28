@@ -23,6 +23,7 @@ export function prepareNamespaces(options?: Partial<MainOptions>): Promise<MainR
 
 
 import * as model from '../lib/gen/model.js';
+export * from '../lib/gen/model.js';
 
 
 export interface MainResult {

@@ -2,7 +2,7 @@
   "description": "Types helpers for Chrome extensions",
   "name": "chrome-types-helpers",
   "license": "Apache-2.0",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
   "dependencies": {
     "fast-glob": "^3.2.5",
@@ -35,7 +35,7 @@
   "scripts": {
     "test": "ava",
     "rollup": "rollup --format=cjs --file=lib-gen-main.cjs -- lib/gen/main.js",
-    "ts-fix": "tsc --declaration --emitDeclarationOnly --allowJs --outDir ts-fix lib/gen/model.js; cp ts-fix/model.d.ts lib/gen/model.d.ts",
+    "ts-fix": "rm -f lib/gen/model.d.ts; tsc --declaration --emitDeclarationOnly --allowJs --outDir ts-fix lib/gen/model.js; cp ts-fix/model.d.ts lib/gen/model.d.ts",
     "prepublishOnly": "npm run rollup; npm run ts-fix",
     "prepareChromeTypes": "node ./bin/prepare-types.js"
   },
