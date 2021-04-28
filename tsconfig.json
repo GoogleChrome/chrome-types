@@ -11,7 +11,6 @@
 
     // configure as you like: these are my preferred defaults!
     "strict": true,
-    "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
 
@@ -22,8 +21,8 @@
   "include": [
     // include the JS files you'd like to check here
     "tests/*.js",
-    "*.js",
-    "types/*.d.ts",
-    "**/*.js",
+    "types/*",
+    "bin/*.js",
+    "lib/**/*.js",
   ],
 }

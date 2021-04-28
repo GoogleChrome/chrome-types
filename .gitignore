@@ -5,3 +5,5 @@ node_modules/
 all.d.ts
 *.cjs
 bin/prepare-types/work/*
+ts-fix/
+lib/**/*.d.ts

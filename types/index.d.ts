@@ -32,7 +32,7 @@ export interface MainResult {
     namespaces: number,
     skipped: string[],
   },
-};
+}
 
 
 export interface MainOptions {
@@ -40,7 +40,7 @@ export interface MainOptions {
   toolsRevision: string,
   cacheIdlParse: boolean,
   symbols: SymbolsVersionInfo,
-};
+}
 
 
 export type RawTypeType =

@@ -35,7 +35,8 @@
   "scripts": {
     "test": "ava",
     "rollup": "rollup --format=cjs --file=lib-gen-main.cjs -- lib/gen/main.js",
-    "prepublishOnly": "npm run rollup",
+    "ts-fix": "tsc --declaration --emitDeclarationOnly --allowJs --outDir ts-fix lib/gen/model.js; cp ts-fix/model.d.ts lib/gen/model.d.ts",
+    "prepublishOnly": "npm run rollup; npm run ts-fix",
     "prepareChromeTypes": "node ./bin/prepare-types.js"
   },
   "repository": {
