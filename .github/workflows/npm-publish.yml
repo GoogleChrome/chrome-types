@@ -34,15 +34,18 @@ jobs:
 
       - run: npm run prepareChromeTypes
 
+      # Log differences in the index.d.ts file.
+      # (This will always have a "generated on" diff, but that's not included in the decision
+      # as to whether to publish again).
+      - run: diff -C1 bin/prepare-types/work/index.d.ts bin/prepare-types/work/old/index.d.ts
+
+      # Log differences in the history.json file.
+      # (This is written formatted nicely, so diffs are probably readable)
+      - run: diff -C1 bin/prepare-types/work/history.json bin/prepare-types/work/old/history.json
+
+      # This publishes only if the package.json version has been incremented compared to the latest
+      # published version. Incrementing happens in the above prepareChromeTypes step.
       - uses: JS-DevTools/npm-publish@v1
         with:
           package: ./bin/prepare-types/work/package.json
           token: ${{ secrets.NPM_TOKEN }}
-
-      # # The `prepareChromeTypes` creates a package.json in this folder if it should be published again,
-      # # otherwise it is skipped.
-      # - working-directory: ./bin/prepare-types/work
-      #   run: '(! test -f package.json) && echo "Not publishing, no package.json generated" || npm publish'
-      #   env:
-      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-

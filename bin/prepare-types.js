@@ -35,17 +35,13 @@ process.chdir(new URL('./prepare-types', import.meta.url).pathname);
 try {
   fs.rmSync('work', {recursive: true});
 } catch {}
-fs.mkdirSync('work');
+fs.mkdirSync('work/old', {recursive: true});
 
 filesToCopy.forEach((file) => {
   fs.copyFileSync(file, path.join('work', file));
 });
 
-const {code, out} = await exec(['npm', 'view', 'chrome-types', '--json']);
-if (code) {
-  throw new Error(`could not get info on chrome-types: ${code}`);
-}
-const npmInfo = JSON.parse(out.toString('utf-8'));
+const npmInfo = await getPackageInfo();
 
 /** @type {string} */
 const latestVersion = npmInfo.version;
@@ -54,13 +50,12 @@ const url = new URL(npmInfo.dist.tarball);
 const r = await fetch(url);
 const files = await tarToFiles(await r.buffer());
 
-// const previousPackageJson = JSON.parse(files['package/package.json'].toString('utf-8'));
-// console.info(previousPackageJson);
-
+// If we see any change, then bump the package.json version.
 let anyChange = false;
 
 // Either recreate or republish the old history file.
-const updatedHistory = await maybeUpdateHistory(files['package/history.json']);
+const previousHistoryBuffer = files['package/history.json'];
+const updatedHistory = await maybeUpdateHistory(previousHistoryBuffer);
 if (updatedHistory) {
   anyChange = true;
   console.warn('History updated for version', updatedHistory.version);
@@ -68,14 +63,14 @@ if (updatedHistory) {
 } else {
   fs.writeFileSync('work/history.json', files['package/history.json']);
 }
+fs.writeFileSync('work/old/history.json', previousHistoryBuffer);
 
 // Always generate types anew, in case something changed, as this runs at HEAD.
-const updatedTypesBuffer = await generateTypes();
-const updatedTypesHash = generateLinesHash(updatedTypesBuffer);
-
+// Generate a line-by-line hash that ignores //'s, and see if there's a change.
 const previousTypesBuffer = files['package/index.d.ts'];
+const updatedTypesBuffer = await generateTypes();
 const previousTypesHash = generateLinesHash(previousTypesBuffer);
-
+const updatedTypesHash = generateLinesHash(updatedTypesBuffer);
 if (updatedTypesHash !== previousTypesHash) {
   anyChange = true;
   console.warn('Types update', previousTypesHash, '=>', updatedTypesHash);
@@ -83,6 +78,7 @@ if (updatedTypesHash !== previousTypesHash) {
 } else {
   fs.writeFileSync('work/index.d.ts', previousTypesBuffer);
 }
+fs.writeFileSync('work/old/index.d.ts', previousTypesBuffer);
 
 const packageJson = JSON.parse(fs.readFileSync('package.template.json', 'utf-8'));
 
@@ -95,12 +91,27 @@ if (anyChange) {
   console.warn('Using same latest version', latestVersion);
   packageJson.version = latestVersion;
 }
-
 fs.writeFileSync('work/package.json', JSON.stringify(packageJson, undefined, 2));
 
 
+/**
+ * Fetch the previous latest published information for the "chrome-types" package.
+ *
+ * @return {Promise<{[name: string]: any}>}
+ */
+async function getPackageInfo() {
+  const {code, out} = await exec(['npm', 'view', 'chrome-types', '--json']);
+  if (code) {
+    throw new Error(`could not get info on chrome-types: ${code}`);
+  }
+  return JSON.parse(out.toString('utf-8'));
+}
+
 
 /**
+ * Maybe update the contents of the `history.json` file, if we see a new latest version. If there
+ * was no change, then this returns `null`.
+ *
  * @param {Buffer} previousBuffer
  * @return {Promise<types.VersionDataFile?>}
  */
@@ -129,10 +140,14 @@ async function maybeUpdateHistory(previousBuffer) {
 
 
 /**
+ * Generate the new single `index.d.ts` types file, including history information. This always
+ * generates new content.
+ *
+ * @param {string} historyJsonPath
  * @return {Promise<Buffer>}
  */
-async function generateTypes() {
-  const {code, out} = await exec(['node', '../tsd.js', '-d', 'work/history.json']);
+async function generateTypes(historyJsonPath = 'work/history.json') {
+  const {code, out} = await exec(['node', '../tsd.js', '-d', historyJsonPath]);
   if (code) {
     throw new Error(`could not generate types: ${code}`);
   }
