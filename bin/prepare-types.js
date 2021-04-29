@@ -82,6 +82,12 @@ fs.writeFileSync('work/old/index.d.ts', previousTypesBuffer);
 
 const packageJson = JSON.parse(fs.readFileSync('package.template.json', 'utf-8'));
 
+// Run TypeScript on the types to make sure they are valid.
+const {code} = await exec(['tsc', 'work/index.d.ts']);
+if (code) {
+  throw new Error(`could not parse types with tsc: ${code}`);
+}
+
 // If there were changes, then rev the version.
 if (anyChange) {
   const updatedVersion = semver.inc(latestVersion, 'patch');
