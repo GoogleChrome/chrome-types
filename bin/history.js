@@ -21,6 +21,13 @@ import {buildLimit} from '../lib/limit.js';
 import * as types from '../types/index.js';
 import mri from 'mri';
 
+
+/**
+ * If the on-disk revision doesn't match this number, then recreate the entire file.
+ */
+const GENERATED_REVISION = 2;
+
+
 // nb. Before 53, we see more parsing issues in feature files. 53 was released on 2016-08-31.
 const LOW_VERSION = 53;
 let effectiveLow = LOW_VERSION;
@@ -40,15 +47,10 @@ const argv = mri(process.argv.slice(2), {
 
 
 /**
- * @type {types.VersionDataFile}
- */
-let previousInput;
-
-
-/**
- * @type {{[path: string]: types.VersionInfo}}
+ * @type {types.SymbolsVersionInfo}
  */
 const allSymbols = {};
+
 
 if (argv.help) {
   console.warn(`Usage: history.js [-i]
@@ -68,22 +70,24 @@ if (argv.help) {
   }));
 
   /** @type {types.VersionDataFile} */
-  previousInput = JSON.parse(raw.toString('utf-8'));
+  const cand = JSON.parse(raw.toString('utf-8'));
 
-  if (!previousInput.version || previousInput.version < LOW_VERSION || (~~previousInput.version) !== previousInput.version) {
-    throw new Error(`invalid history file, bad version: ${previousInput.version}`);
+  if (!cand.version || cand.version < LOW_VERSION || (~~cand.version) !== cand.version) {
+    throw new Error(`invalid history file, bad version: ${cand.version}`);
   }
 
-  // Step over the previous version, we have that.
-  effectiveLow = previousInput.version + 1;
+  if (cand.revision === GENERATED_REVISION) {
+    // Step over the previous version, we have that.
+    effectiveLow = cand.version + 1;
 
-  // Record the generated low version.
-  outputLow = previousInput.low;
+    // Record the generated low version.
+    outputLow = cand.low;
 
-  // Clone all previously seen symbols.
-  Object.assign(allSymbols, previousInput.symbols);
-} else {
-  previousInput = {version: 0, low: 0, symbols: {}, generated: ''};
+    // Clone all previously seen symbols.
+    Object.assign(allSymbols, cand.symbols);
+  } else {
+    console.warn('History file revision changed, regenerate all:', cand.revision, '=>', GENERATED_REVISION);
+  }
 }
 
 
@@ -246,7 +250,8 @@ tombstones.forEach((path) => {
 /** @type {types.VersionDataFile} */
 const out = {
   low: outputLow,
-  version: data.length ? data[data.length - 1].version : previousInput.version,
+  version: stableVersion,
+  revision: GENERATED_REVISION,
   generated: (new Date()).toISOString(),
   symbols: allSymbols,
 };

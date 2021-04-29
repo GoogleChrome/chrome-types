@@ -61,7 +61,7 @@ if (updatedHistory) {
   console.warn('History updated for version', updatedHistory.version);
   fs.writeFileSync('work/history.json', JSON.stringify(updatedHistory, undefined, 2));
 } else {
-  fs.writeFileSync('work/history.json', files['package/history.json']);
+  fs.writeFileSync('work/history.json', previousHistoryBuffer);
 }
 fs.writeFileSync('work/old/history.json', previousHistoryBuffer);
 
@@ -129,9 +129,10 @@ async function maybeUpdateHistory(previousBuffer) {
   if (updatedHistory.version === undefined) {
     throw new Error('bad updated history');
   }
-  if (updatedHistory.version === previousHistory.version) {
+  if (updatedHistory.version === previousHistory.version &&
+      updatedHistory.revision === previousHistory.revision &&
+      keysEqual(updatedHistory.symbols, previousHistory.symbols)) {
     // do nothing
-    // TODO: check symbol count?
     return null;
   }
 
@@ -152,4 +153,26 @@ async function generateTypes(historyJsonPath = 'work/history.json') {
     throw new Error(`could not generate types: ${code}`);
   }
   return out;
+}
+
+
+/**
+ * @param {{[key: string]: any}} a
+ * @param {{[key: string]: any}} b
+ */
+function keysEqual(a, b) {
+  const as = new Set(Object.keys(a));
+  const bs = new Set(Object.keys(b));
+
+  if (as.size !== bs.size) {
+    return false;
+  }
+
+  for (const key of as) {
+    if (!bs.has(key)) {
+      return false;
+    }
+  }
+
+  return true;
 }

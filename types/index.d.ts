@@ -150,10 +150,36 @@ export interface VersionInfo {
 
 export type SymbolsVersionInfo = {[path: string]: VersionInfo};
 
+/**
+ * This is the format of the on-disk "history.json" file which contains version data over time.
+ */
 export interface VersionDataFile {
+
+  /**
+   * Generated from this number and above. No APIs will be tagged at this version as this will be
+   * treated as "version zero".
+   */
   low: number,
+
+  /**
+   * The stable version this file refers to.
+   */
   version: number,
+
+  /**
+   * This is the revision (format) of this file. If the expected format doesn't match then any
+   * tooling should regenerate data.
+   */
+  revision?: number,
+
+  /**
+   * The date/time this file was generated.
+   */
   generated: string,
+
+  /**
+   * Symbol data.
+   */
   symbols: SymbolsVersionInfo,
 }
 
