@@ -52,12 +52,14 @@ if (argv.help) {
 
 }
 
-/** @type {types.VersionDataFile} */
-let versionData;
+/** @type {types.SymbolsVersionInfo?} */
+let symbols = null;
 
 
 if (argv.data) {
   const u = new URL(argv.data, import.meta.url);
+  /** @type {types.VersionDataFile} */
+  let versionData;
   if (u.protocol === 'file:') {
     // don't use "u", it's relative to import dir
     versionData = JSON.parse(fs.readFileSync(argv.data, 'utf-8'));
@@ -65,16 +67,16 @@ if (argv.data) {
     const response = await fetch(u);
     versionData = await response.json();
   }
+  symbols = versionData.symbols;
   console.warn('Loaded version data for', versionData.version, 'with', Object.keys(versionData.symbols).length, 'symbols');
 } else {
   console.warn('Not using version data');
-  versionData = {low: 0, version: 0, generated: '', symbols: {}};
 }
 
 
 const now = new Date();
 
-const {namespaces, stats} = await prepareNamespaces({symbols: versionData.symbols});
+const {namespaces, stats} = await prepareNamespaces({symbols});
 
 console.warn('Skipped namespaces:', stats.skipped);
 

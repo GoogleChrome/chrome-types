@@ -20,6 +20,7 @@ import {prepareNamespaces} from '../lib/gen/main.js';
 import {buildLimit} from '../lib/limit.js';
 import * as types from '../types/index.js';
 import mri from 'mri';
+import * as fs from 'fs';
 
 
 /**
@@ -245,6 +246,15 @@ console.warn('tombstoning APIs', [...tombstones]);
 tombstones.forEach((path) => {
   delete allSymbols[path];
 });
+
+
+// Add in any override symbols.
+const symbolsOverridePath = new URL('./history/symbols-override.json', import.meta.url).pathname;
+const overrides = JSON.parse(fs.readFileSync(symbolsOverridePath, 'utf-8'));
+if (Object.keys(overrides).length) {
+  console.warn('Adding overrides to symbols', overrides);
+  Object.assign(allSymbols, overrides);
+}
 
 
 /** @type {types.VersionDataFile} */

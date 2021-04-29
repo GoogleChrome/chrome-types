@@ -25,7 +25,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 
-const filesToCopy = ['README.md', 'LICENSE'];
+const filesToCopy = ['README.md', 'LICENSE', '.npmignore'];
 
 
 // chdir to 'prepare-types' in the script's directory.

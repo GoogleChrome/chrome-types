@@ -37,6 +37,8 @@ const versionData = {
   'fakeApi.specificMethod': {
     low: 100,
   },
+  'fakeApi': {},
+  'fakeApi.some.dependency': {},
 };
 
 

@@ -8,7 +8,6 @@ test('api and generic child dependency', t => {
   const result = testFeatures.query('api:fakeApi');
   t.deepEqual(result, {
     supportedInChannel: 'stable',
-    unknownVersion: true,
     permissions: ['fakeApiPermission'],
   });
 

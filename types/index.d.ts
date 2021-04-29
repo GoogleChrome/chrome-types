@@ -40,7 +40,7 @@ export interface MainOptions {
   revision: string,
   toolsRevision: string,
   cacheIdlParse: boolean,
-  symbols: SymbolsVersionInfo,
+  symbols: SymbolsVersionInfo|null,
 }
 
 
