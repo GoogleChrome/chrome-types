@@ -28,12 +28,23 @@ test('parser', t => {
 
   Object.assign(expectedNamespace, {
     description: 'Use the `fakeApi` API to do some stuff. What about this {@link ref.foo} other API?',
+    canonicalFeature: {
+      supportedInChannel: 'stable',
+    },
+    feature: {
+      supportedInChannel: 'stable',
+    },
   });
 
   // Add an interpretation of the raw method.
   const specificMethodType = new model.FunctionType();
   const specificMethodProperty = new model.Property(specificMethodType, 'specificMethod');
   expectedNamespace.all['specificMethod'] = specificMethodProperty;
+  Object.assign(specificMethodProperty, {
+    canonicalFeature: {
+      supportedInChannel: 'stable',
+    },
+  });
 
   t.deepEqual(namespace, expectedNamespace);
 });
