@@ -18,6 +18,23 @@ test('parser', t => {
       {
         type: 'function',
         name: 'specificMethod',
+        parameters: [
+          {
+            'name': 'arg',
+            'optional': true,
+            'isInstanceOf': 'External',
+          },
+          {
+            'name': 'arg2',
+            'nodoc': true,
+            'isInstanceOf': 'External',
+          },
+        ],
+      },
+      {
+        type: 'function',
+        name: 'nodocMethod',
+        nodoc: true,
       },
     ]
   };
@@ -37,13 +54,29 @@ test('parser', t => {
   });
 
   // Add an interpretation of the raw method.
-  const specificMethodType = new model.FunctionType();
+
+  const argType = new model.RefType('External', false);
+  const argProperty = new model.Property(argType, 'arg');
+  Object.assign(argProperty, {
+    optional: true,
+    canonicalFeature: {
+      supportedInChannel: 'stable',
+    },
+  });
+
+  const specificMethodType = new model.FunctionType([argProperty]);
   const specificMethodProperty = new model.Property(specificMethodType, 'specificMethod');
   expectedNamespace.all['specificMethod'] = specificMethodProperty;
   Object.assign(specificMethodProperty, {
     canonicalFeature: {
       supportedInChannel: 'stable',
     },
+  });
+
+  namespace.traverse((_path, prop) => {
+    if (prop.nodoc) {
+      return true;
+    }
   });
 
   t.deepEqual(namespace, expectedNamespace);

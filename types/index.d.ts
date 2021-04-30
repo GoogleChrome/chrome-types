@@ -41,6 +41,7 @@ export interface MainOptions {
   toolsRevision: string,
   cacheIdlParse: boolean,
   symbols: SymbolsVersionInfo|null,
+  nodocRemove: boolean,
 }
 
 

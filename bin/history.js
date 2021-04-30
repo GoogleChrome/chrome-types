@@ -143,7 +143,7 @@ const fetchChrome = async ({version, revision}) => {
 
       namespace.traverse((path, prop) => {
         if (prop.nodoc) {
-          return;  // don't document this
+          throw new Error(`nodocRemove didn't filter nodoc prop`);
         }
         const key = path.join('.');
         if (key in symbols) {
@@ -153,6 +153,7 @@ const fetchChrome = async ({version, revision}) => {
           channel: prop.canonicalFeature.supportedInChannel ?? 'stable',
           deprecated: prop.deprecated !== undefined,
         };
+        return undefined;
       });
     }
 
