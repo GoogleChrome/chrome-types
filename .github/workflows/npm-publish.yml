@@ -34,14 +34,14 @@ jobs:
 
       - run: npm run prepareChromeTypes
 
-      # Log differences in the index.d.ts file.
-      # (This will always have a "generated on" diff, but that's not included in the decision
-      # as to whether to publish again).
-      - run: diff -C1 bin/prepare-types/work/index.d.ts bin/prepare-types/work/old/index.d.ts
+      # Log differences in the index.d.ts file. This is just for logging, failure should not stop
+      # a publish. (This will always have a "generated on" diff, but that's not included in the
+      # decision as to whether to publish again).
+      - run: diff -C1 bin/prepare-types/work/index.d.ts bin/prepare-types/work/old/index.d.ts || true
 
-      # Log differences in the history.json file.
-      # (This is written formatted nicely, so diffs are probably readable)
-      - run: diff -C1 bin/prepare-types/work/history.json bin/prepare-types/work/old/history.json
+      # Log differences in the history.json file. This is just for logging, failure should not stop
+      # a publish. (The JSON is formatted, so diffs are probably readable)
+      - run: diff -C1 bin/prepare-types/work/history.json bin/prepare-types/work/old/history.json || true
 
       # This publishes only if the package.json version has been incremented compared to the latest
       # published version. Incrementing happens in the above prepareChromeTypes step.
