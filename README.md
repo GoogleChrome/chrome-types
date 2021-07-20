@@ -31,7 +31,7 @@ There's various tools under "bin/" which you can run as part of this repo if you
 * **history.js:** fetches older versions of Chromium to find APIs that have changed over time
   * This generates (and accepts, to keep moving forward) a history JSON file that [looks like this](https://unpkg.com/chrome-types@latest/history.json)
 
-* **prepare.js:** is used internally to prepare a ".d.ts" and the history JSON for regular publish to NPM, and is probably not interesting to the public
+* **prepare-types.js:** is used internally to prepare a ".d.ts" and the history JSON for regular publish to NPM, and is probably not interesting to the public
   * It internally runs both scripts above
 
 # Design

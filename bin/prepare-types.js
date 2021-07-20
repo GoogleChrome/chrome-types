@@ -15,6 +15,12 @@
  * limitations under the License.
  */
 
+
+/**
+ * @fileoverview This script is run regularly to prepare any possible updates
+ * to the published Chrome types on NPM.
+ */
+
 import {exec} from '../lib/exec.js';
 import fetch from 'node-fetch';
 import * as types from '../types/index.js';
@@ -83,7 +89,8 @@ fs.writeFileSync('work/old/index.d.ts', previousTypesBuffer);
 const packageJson = JSON.parse(fs.readFileSync('package.template.json', 'utf-8'));
 
 // Run TypeScript on the types to make sure they are valid.
-const {code} = await exec(['tsc', 'work/index.d.ts']);
+// This specifically references the tsc binary that should be intalled by `npm install`.
+const {code} = await exec(['../../node_modules/.bin/tsc', 'work/index.d.ts']);
 if (code) {
   throw new Error(`could not parse types with tsc: ${code}`);
 }
@@ -91,10 +98,10 @@ if (code) {
 // If there were changes, then rev the version.
 if (anyChange) {
   const updatedVersion = semver.inc(latestVersion, 'patch');
-  console.warn('Updating version', latestVersion, '=>', updatedVersion);
+  console.warn('Changes found, generated work/package.json:', latestVersion, '=>', updatedVersion);
   packageJson.version = updatedVersion;
 } else {
-  console.warn('Using same latest version', latestVersion);
+  console.warn('No changes found; generated work/package.json using previous version:', latestVersion);
   packageJson.version = latestVersion;
 }
 fs.writeFileSync('work/package.json', JSON.stringify(packageJson, undefined, 2));
