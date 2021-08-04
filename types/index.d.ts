@@ -196,6 +196,7 @@ export interface Feature {
   maxManifestVersion: number;
   disallowForServiceWorkers: true;
   permissions: string[];
+  manifestRequirements: string[];
 
   // These are not set by direct parsing, but by loading historical verison data.
   availableFromVersion: number;
