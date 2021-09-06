@@ -2,7 +2,7 @@
   "description": "Types helpers for Chrome extensions",
   "name": "chrome-types-helpers",
   "license": "Apache-2.0",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "type": "module",
   "dependencies": {
     "fast-glob": "^3.2.5",
