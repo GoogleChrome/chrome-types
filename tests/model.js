@@ -29,7 +29,9 @@ test('function expansion', t => {
 });
 
 test('function returnsAsync', t => {
-  const prop = new model.Property(numberType, 'windowId');
+  // This is technically a property (because the generated non-Promise version needs it and has
+  // a name).
+  const prop = new model.Property(numberType, 'something');
 
   const returnsAsyncType = new model.FunctionType([prop], voidType);
   const returnsAsyncProperty = new model.Property(returnsAsyncType, 'callback');
@@ -38,12 +40,9 @@ test('function returnsAsync', t => {
   const {expansions} = f;
   t.is(expansions.length, 2);
 
-  // Check that the Promise expansion returns `Promise<{windowId: number}>`.
+  // Check that the Promise expansion returns `Promise<number>`, as it takes the singular param.
   const promise = expansions[0];
-  const expectedObjectType = new model.ObjectType({
-    'windowId': prop,
-  });
-  const expectedType = new model.RefType('Promise', false, [expectedObjectType]);
+  const expectedType = new model.RefType('Promise', false, [prop.type]);
   t.is(promise.length, 1);
   t.deepEqual(promise[0].type, expectedType);
 
