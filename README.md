@@ -44,10 +44,10 @@ The two folders exist to contain slightly different classes of extensions (Chrom
 
 There's two main components in this repo, which are combined in interesting ways:
 
-* JSON parser for Chromium's [internal types specification](https://chromium.googlesource.com/chromium/src/+/master/chrome/common/extensions/api/schemas.md)
+* JSON parser for Chromium's [internal types specification](https://chromium.googlesource.com/chromium/src/+/main/chrome/common/extensions/api/schemas.md)
   * Chromium also has types specified in IDL; these are converted to JSON before being parsed via Python script fetched as part of checking out Chromium
   * This generates a parsed JS model unique to this repo
 
-* Feature parser for Chromium's [feature format](https://chromium.googlesource.com/chromium/src/+/master/chrome/common/extensions/api/_features.md)
-  * These features are heavily restricted to find APIs supported broadly (i.e., removing features that are limited to a specific extension whitelist or which require a command-line flag)
+* Feature parser for Chromium's [feature format](https://chromium.googlesource.com/chromium/src/+/main/chrome/common/extensions/api/_features.md)
+  * These features are heavily restricted to find APIs supported broadly (i.e., removing features that are limited to a specific extension allowlist or which require a command-line flag)
   * Features themselves can be simple, complex (multiple choices) and have multiple dependencies: they can be a graph of requirements that must all be met
