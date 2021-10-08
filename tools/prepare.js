@@ -151,7 +151,7 @@ async function prepareInTemp({ workPath, headRevision, definitionsRevision }) {
   log.warn(`Found ${chalk.blue(Object.keys(outputDefinitions).length)} API definitions`);
   log.warn(`Found ${chalk.blue(Object.keys(mergedFeatures).length)} feature definitions`);
 
-  return { features: mergedFeatures, definitions: outputDefinitions };
+  return { feature: mergedFeatures, api: outputDefinitions };
 }
 
 async function prepare() {
@@ -199,7 +199,7 @@ file to STDOUT.
   const tmpobj = tmp.dirSync();
   const workPath = tmpobj.name;
 
-  /** @type {{features: Object, definitions: Object}} */
+  /** @type {{feature: Object, api: Object}} */
   let out;
   try {
     out = await prepareInTemp({ headRevision, definitionsRevision, workPath });
