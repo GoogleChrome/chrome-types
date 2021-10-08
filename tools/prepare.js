@@ -102,7 +102,6 @@ async function prepareInTemp({ workPath, headRevision, definitionsRevision, cpuL
       await conversionLimit.acquire();
       try {
         o = await convertFromIdl(workPath, cand);
-  
         log.warn(`Converted ${chalk.green(cand)}`);
       } finally {
         conversionLimit.release();
@@ -111,6 +110,7 @@ async function prepareInTemp({ workPath, headRevision, definitionsRevision, cpuL
       o = JSON5.parse(await fsPromises.readFile(path.join(workPath, cand), 'utf-8'));
     }
 
+    // Raw JSON definitions come wrapped in an array.
     if (Array.isArray(o)) {
       if (o.length !== 1) {
         throw new Error(`got unexpected API definition length: ${o.length} from ${cand}`);
