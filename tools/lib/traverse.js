@@ -2,6 +2,19 @@
 import * as chromeTypes from '../../types/chrome.js';
 
 
+
+/**
+ * @param {string} id
+ */
+export function last(id) {
+  const index = id.lastIndexOf('.');
+  if (index !== -1) {
+    return id.substr(index + 1);
+  }
+  return id;
+}
+
+
 /**
  * @param {{[name: string]: chromeTypes.TypeSpec} | chromeTypes.TypeSpec[] | undefined} source
  * @param {string} parent
@@ -55,4 +68,47 @@ export function forEach(source, parent, fn) {
 
     fn(o, id);
   }
+}
+
+
+/**
+ * @param {chromeTypes.TypeSpec} source
+ * @param {string} id
+ */
+export function propertiesFor(source, id) {
+
+  /** @type {{[id: string]: chromeTypes.TypeSpec}} */
+  const out = {};
+
+  forEach(source.properties, id, (prop, id) => {
+    out[id] = prop;
+  });
+
+  forEach(source.events, id, (prop, id) => {
+    const { returns, parameters, type, ...outer } = prop;
+    if (type !== 'function') {
+      console.warn('got declarative event', prop);
+      // TODO: can happen in declarative event?
+      // throw new Error(`got bad event type: ${JSON.stringify(prop)}`);
+    }
+
+    /** @type {chromeTypes.TypeSpec} */
+    const inner = {
+      type: 'function',
+    };
+    if (returns) {
+      inner.returns = returns;
+    }
+    if (parameters) {
+      inner.parameters = parameters;
+    }
+
+    out[id] = {
+      ...outer,
+      $ref: 'events.Event',
+      value: [last(id), inner],
+    };
+  });
+
+  return out;
 }

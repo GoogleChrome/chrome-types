@@ -21,6 +21,7 @@ import * as chromeTypes from '../types/chrome.js';
 import { RenderBuffer } from './lib/buffer.js';
 import { isValidToken } from './lib/js-internals.js';
 import * as traverse from './lib/traverse.js';
+import { last } from './lib/traverse.js';
 
 
 /** @type {chromeTypes.ProcessedAPIData} */
@@ -96,20 +97,18 @@ function renderNamespace(namespace) {
   });
 
   // Render top-level properties. These are `const` or in one case, `let`.
-  traverse.forEach(namespace.properties, toplevel, (spec, id) => {
+  const properties = traverse.propertiesFor(namespace, toplevel);
+  for (const id in properties) {
+    const spec = properties[id];
     buf.line();
     const name = last(id);
-    buf.line(`export const ${name}: ${renderType(spec, id)};`);
-  });
+    const decl = spec.optional ? 'let' : 'const';
+    buf.line(`export ${decl} ${name}: ${renderType(spec, id)};`);
+  }
 
   // Render top-level functions.
   traverse.forEach(namespace.functions, toplevel, (spec, id) => {
     buf.append(renderTopFunction(spec, id, true));
-  });
-
-  // Render events. These are just instances of `chrome.events.Event`.
-  traverse.forEach(namespace.events, toplevel, (spec, id) => {
-    // TODO: render events
   });
 
   return buf;
@@ -117,18 +116,8 @@ function renderNamespace(namespace) {
 
 
 /**
- * @param {string} id
- */
-function last(id) {
-  const index = id.lastIndexOf('.');
-  if (index !== -1) {
-    return id.substr(index + 1);
-  }
-  return id;
-}
-
-
-/**
+ * These are the template overrides for interface definitions within Chrome's extensions codebase.
+ *
  * @param {string} id
  */
 function objectTemplatesFor(id) {
@@ -150,26 +139,7 @@ function objectTemplatesFor(id) {
  * @param {string} id
  */
 function renderObjectAsType(prop, id) {
-  let templatePart = '';
-
-  const templates = objectTemplatesFor(id);
-  if (templates) {
-    templatePart = `<${templates}>`;
-  }
-
-  // if (t.templates.length) {
-  //   const parts = t.templates.map((prop) => {
-  //     // If we find the special nonce, don't display a template type.
-  //     if (prop.type === model.requiredTemplateType) {
-  //       return prop.name;
-  //     }
-  //     return `${prop.name} = ${renderType(prop.type, true)}`;
-  //   });
-  //   templatePart = `<${parts.join(', ')}>`;
-  // }
-
   const name = last(id);
-
 
   const buf = new RenderBuffer();
   buf.start('{');
@@ -183,23 +153,24 @@ function renderObjectAsType(prop, id) {
     buf.line(`constructor(arg: Omit<${name}, 'instanceType'>);`);
   }
 
-  traverse.forEach(prop.properties, id, (spec, id) => {
+  const properties = traverse.propertiesFor(prop, id);
+  for (const childId in properties) {
+    const spec = properties[childId];
     buf.line();
-
     const opt = spec.optional ? '?' : '';
-    const name = last(id);
-    buf.line(`${name}${opt}: ${renderType(spec, id)};`);
-  });
+    const name = last(childId);
+    buf.line(`${name}${opt}: ${renderType(spec, childId)};`);
+  }
 
   traverse.forEach(prop.functions, id, (spec, id) => {
     buf.append(renderTopFunction(spec, id, false));
   });
 
-  traverse.forEach(prop.events, id, (spec, id) => {
-
-  });
-
   buf.end('}');
+
+  const templates = objectTemplatesFor(id);
+  const templatePart = templates ? `<${templates}>` : '';
+
   return `${mode} ${name}${templatePart} ${buf.render()}`;
 }
 
@@ -272,12 +243,15 @@ function renderTopFunction(spec, id, exportFunction = false) {
 
 
 /**
- * @param {chromeTypes.TypeSpec} spec
+ * @param {chromeTypes.TypeSpec=} spec
  * @param {string?} id
  * @param {boolean} ambig whether this is in an ambigious context (e.g., "X[]")
  * @return {string}
  */
 function renderType(spec, id = null, ambig = false) {
+  if (spec === undefined) {
+    return 'void';
+  }
 
   /** @type {(s: string) => string} */
   const maybeWrapAmbig = ambig ? (s) => `(${s})` : (s) => s;
@@ -397,7 +371,43 @@ function renderType(spec, id = null, ambig = false) {
   }
 
   if (spec.type === 'function') {
-    return 'Function';
+    const buf = new RenderBuffer();
+
+    if (spec.parameters?.length) {
+      buf.start('(');
+      let needsGap = false;
+
+      // TODO: sometimes we get optionals before non-optionals, just disallow
+      // TODO: need to walk backwards
+
+      spec.parameters.forEach((param) => {
+        if (param.nodoc) {
+          return;
+        }
+
+        if (needsGap) {
+          buf.line();
+        }
+
+        // if (renderComment(buf, p)) {
+        //   needsGap = true;
+        // }
+
+        const opt = param.optional ? '?' : '';
+        buf.line(`${param.name}${opt}: ${renderType(param, `${id}.${param.name}`)},`);
+      });
+
+      buf.end(')');
+    } else {
+      buf.append('()');
+    }
+
+    if (spec.returns_async) {
+      throw new Error(`got inline returns_async on function: ${JSON.stringify(spec)}`);
+    }
+
+    buf.append(` => ${renderType(spec.returns, `${id}.returns`)}`);
+    return buf.render();
   }
 
   switch (spec.type) {
