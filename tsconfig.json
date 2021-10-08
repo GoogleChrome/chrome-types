@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "noEmit": true,
+
+    // if you'd like to warn if you're using modern features, change these
+    // both to e.g., "es2017"
+    "module": "esnext",
+    "target": "esnext",
+    "moduleResolution": "node",
+
+    // configure as you like: these are my preferred defaults!
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowSyntheticDefaultImports": true,
+
+    // "strict" implies this, but you'll want to enable it when you're
+    // ready: it's a huge reason your project will start complaining
+    "noImplicitAny": false,
+  },
+  "include": [
+    // include the JS files you'd like to check here
+    "builder/**/*.js",
+  ],
+}
