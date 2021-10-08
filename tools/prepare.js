@@ -53,10 +53,6 @@ const toolsPaths = [
 ];
 
 
-const featureFileMatch = /^_(\w+)_features.json$/;
-
-
-
 /**
  * @param {{
  *   workPath: string,
@@ -226,11 +222,12 @@ Options:
     await fsPromises.rm(workPath, {recursive: true, force: true});
   }
 
+  /** @type {chromeTypes.ProcessedAPIData} */
   const payload = {
     headRevision,
     definitionsRevision,
     version: versionData,
-    when: (new Date()),
+    when: (new Date().toString()),
     ...out,
   };
   const render = Buffer.from(argv.debug ? JSON.stringify(payload, undefined, 2) : JSON.stringify(payload));
