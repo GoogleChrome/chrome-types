@@ -200,57 +200,133 @@ function renderTopFunction(spec, id, exportFunction = false) {
   } else if (exportFunction) {
     prefix = 'export function ';
   }
-  buf.line(`${prefix}${effectiveName}(): any;`)
-  return buf;
 
-  // TODO(samthor): Expand variations of functions, including returns_async
-
-  fn.type.forEach((returnProperty, ...parameters) => {
-    // This should never happen; the expand code on model.FunctionType should catch nodoc nodes.
-    parameters = parameters.filter((p) => !filterNode(p));
-
-    const suffix = `: ${renderType(returnProperty.type)};`;
-
+  const expansions = expandFunctionParams(spec);
+  for (const [returnSpec, ...params] of expansions) {
     buf.line();
-    renderComment(buf, fn, [returnProperty, ...parameters]);
+
+    const suffix = `: ${renderType(returnSpec, `${id}.return`)};`
     buf.line(`${prefix}${effectiveName}(`);
 
-    if (parameters.length === 0) {
+    if (params.length === 0) {
       buf.append(`)${suffix}`);
-      return;
+      continue;
     }
 
-    // Render each parameter on its own line.
     buf.start('');
-    for (let i = 0; i < parameters.length; ++i) {
-      const p = parameters[i];
-      const opt = p.optional ? '?' : '';
+    params.forEach((param, i) => {
+      const name = param.name || `_${i}`;
+      const effectiveName = isValidToken(name) ? name : `_${name}`;
 
-      let effectiveParameterName = p.name;
-      if (isJSKeyword(p.name)) {
-        effectiveParameterName = `_${effectiveParameterName}`;
-      }
-
-      buf.line(`${effectiveParameterName}${opt}: ${renderType(p.type)},`);
-    }
-
+      const opt = param.optional ? '?' : '';
+      buf.line(`${effectiveName}${opt}: ${renderType(param, `${id}.${name}`)},`);
+    });
     buf.end(')');
-    buf.append(suffix);
-  });
+    buf.append(`${suffix}`);
+  }
 
   return buf;
 }
 
 
 /**
- * @param {chromeTypes.TypeSpec=} spec
+ * @param {chromeTypes.TypeSpec} spec
+ */
+function expandFunctionParams(spec) {
+  const params = (spec.parameters ?? []).filter(({nodoc}) => !nodoc);
+
+  // This includes the return value in the 0th position.
+  /** @type {chromeTypes.TypeSpec[][]} */
+  const expansions = [];
+
+  if (spec.returns_async) {
+    if ((spec.returns_async.parameters?.length ?? 0) > 1) {
+      throw new Error(`returns_async with too many params: ${JSON.stringify(spec.returns_async)}`);
+    }
+    // This can be undefined, which is fine: treated as void for the Promise type.
+    const singleReturnsAsyncParam = spec.returns_async.parameters?.[0];
+
+    // Call ourselves again without `returns_async`, so we can use the `Promise` return type.
+    // Replace the 0th result with a Promise.
+    const { returns_async: _, ...clone } = spec;
+    const promisified = expandFunctionParams(clone);
+
+    for (const out of promisified) {
+      out[0] = {
+        $ref: 'Promise',
+        value: [
+          'return',
+          singleReturnsAsyncParam,
+        ],
+      }
+    }
+    expansions.push(...promisified);
+
+    // Push this as a callback.
+    params.push(spec.returns_async);
+  }
+
+  let seenNonOptional = false;
+
+  /** @type {number[]} */
+  const optionalPositionsLeft = [];
+
+  // Working backwards, find all optional positions found at a lower index than required ones. For
+  // example, for (req, opt, req, opt), the result array will be [1] as the first required argument
+  // is at 2.
+  for (let i = params.length - 1; i >= 0; --i) {
+    const p = params[i];
+    if (!p.optional) {
+      seenNonOptional = true;
+      continue;
+    }
+    if (!seenNonOptional) {
+      continue;
+    }
+    params[i] = { ...p };
+    delete params[i].optional;
+    optionalPositionsLeft.unshift(i);
+  }
+
+  // Walk through all options 0-(2 ** positions). For the boring case, this will just be one, and
+  // no bits will be set (value zero). For complex cases, this will enumerate through all possible
+  // optional arguments, enabling and disabling them as necessary.
+  const target = 1 << optionalPositionsLeft.length;
+
+  for (let i = 0; i < target; ++i) {
+    /** @type {(chromeTypes.TypeSpec?)[]} */
+    const work = params.slice();
+    for (let j = 0; j < optionalPositionsLeft.length; ++j) {
+      const bit = 1 << j;
+      if (i & bit) {
+        const index = optionalPositionsLeft[j];
+        work[index] = null;
+      }
+    }
+
+    // This has no return type (void), so push undefined first.
+    const result = /** @type {chromeTypes.TypeSpec[]} */ (work.filter((x) => x !== null));
+    expansions.push([{ type: 'void' }, ...result]);
+  }
+
+  return expansions;
+}
+
+
+/**
+ * @param {chromeTypes.TypeSpec|undefined} spec
  * @param {string?} id
  * @param {boolean} ambig whether this is in an ambigious context (e.g., "X[]")
  * @return {string}
  */
-function renderType(spec, id = null, ambig = false) {
-  if (spec === undefined) {
+function renderType(spec, id, ambig = false) {
+  if (spec === undefined || spec.type === 'void') {
     return 'void';
+  }
+
+  // This should probably never happen. We could instead return `void`.
+  if (spec.nodoc) {
+    throw new Error(`render nodoc type: ${JSON.stringify(spec)}`);
   }
 
   /** @type {(s: string) => string} */
@@ -278,7 +354,7 @@ function renderType(spec, id = null, ambig = false) {
     if (spec.choices.length === 0) {
       throw new Error(`zero choices`);
     }
-    return maybeWrapAmbig(spec.choices.map((choice) => renderType(choice)).join(' | '));
+    return maybeWrapAmbig(spec.choices.map((choice) => renderType(choice, null)).join(' | '));
   }
 
   if (spec.type === 'array') {
@@ -315,8 +391,18 @@ function renderType(spec, id = null, ambig = false) {
       `[name: string]: ${renderType(spec.additionalProperties, id)}` :
       '';
 
+    /** @type {{[id: string]: chromeTypes.TypeSpec}} */
+    let props = {};
+
+    if (id !== null) {
+      props = traverse.propertiesFor(spec, id);
+    } else {
+      // TODO: ignored for now
+      // throw new Error(`got inner object without id: ${JSON.stringify(spec)}`);
+    }
+
     // If this object only has additional properties (it's just a dict), then return early.
-    if (!spec.properties || !Object.keys(spec.properties).length) {
+    if (!Object.keys(props).length) {
       return `{${additionalPropertiesPart}}`;
     }
 
@@ -329,8 +415,8 @@ function renderType(spec, id = null, ambig = false) {
       buf.line(additionalPropertiesPart + ',');
     }
 
-    for (const name in spec.properties) {
-      const prop = spec.properties[name];
+    for (const childId in props) {
+      const prop = props[childId];
       // if (filterNode(prop)) {
       //   continue;
       // }
@@ -342,6 +428,7 @@ function renderType(spec, id = null, ambig = false) {
       }
       // renderComment(buf, prop);
 
+      const name = last(childId);
       const opt = prop.optional ? '?' : '';
       buf.line(`${name}${opt}: ${renderType(prop, `${id}.${name}`)},`);
     }
@@ -370,21 +457,25 @@ function renderType(spec, id = null, ambig = false) {
     return JSON.stringify(spec.value);
   }
 
-  if (spec.type === 'function') {
+  // Render inline functions. Catch where no type is specified but we have parameters.
+  if (spec.type === 'function' || (!spec.type && spec.parameters)) {
     const buf = new RenderBuffer();
 
-    if (spec.parameters?.length) {
+    // Filter nodoc parameters, which appear occasionally. They are effectively optional params
+    // so just remove them here.
+    const params = (spec.parameters ?? []).filter(({nodoc}) => !nodoc);
+    if (params.length) {
       buf.start('(');
       let needsGap = false;
 
-      // TODO: sometimes we get optionals before non-optionals, just disallow
-      // TODO: need to walk backwards
+      // HACK: Sometimes we find early optional parameters in inline functions. This isn't valid,
+      // so just disallow it anyway, and only allow tail optionals.
+      let lastOptional = params.length;
+      while (params[lastOptional - 1]?.optional) {
+        --lastOptional;
+      }
 
-      spec.parameters.forEach((param) => {
-        if (param.nodoc) {
-          return;
-        }
-
+      params.forEach((param, i) => {
         if (needsGap) {
           buf.line();
         }
@@ -393,7 +484,7 @@ function renderType(spec, id = null, ambig = false) {
         //   needsGap = true;
         // }
 
-        const opt = param.optional ? '?' : '';
+        const opt = i >= lastOptional && param.optional ? '?' : '';
         buf.line(`${param.name}${opt}: ${renderType(param, `${id}.${param.name}`)},`);
       });
 
@@ -402,11 +493,14 @@ function renderType(spec, id = null, ambig = false) {
       buf.append('()');
     }
 
+    // Inline functions cannot have dual Promise/return behavior.
     if (spec.returns_async) {
       throw new Error(`got inline returns_async on function: ${JSON.stringify(spec)}`);
     }
 
-    buf.append(` => ${renderType(spec.returns, `${id}.returns`)}`);
+    // We give this an internal ID of "return", which is a keyword, to match feature definitions
+    // and availability version-over-version.
+    buf.append(` => ${renderType(spec.returns, `${id}.return`)}`);
     return buf.render();
   }
 
@@ -426,5 +520,5 @@ function renderType(spec, id = null, ambig = false) {
       return spec.type;
   }
 
-  return '?';
+  throw new Error(`unsupported type: ${JSON.stringify(spec)}`);
 }
