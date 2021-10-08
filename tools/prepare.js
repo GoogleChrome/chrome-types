@@ -62,9 +62,10 @@ const featureFileMatch = /^_(\w+)_features.json$/;
  *   workPath: string,
  *   headRevision: string,
  *   definitionsRevision: string,
+ *   cpuLimit: number,
  * }} opts
  */
-async function prepareInTemp({ workPath, headRevision, definitionsRevision }) {
+async function prepareInTemp({ workPath, headRevision, definitionsRevision, cpuLimit }) {
   const defitionsPromise = fetchAllTo(workPath, definitionPaths, definitionsRevision);
   const toolsPromise = fetchAllTo(workPath, toolsPaths, headRevision);
   const definitionsFiles = (await defitionsPromise).flatMap(cand => cand ?? []);
@@ -85,7 +86,7 @@ async function prepareInTemp({ workPath, headRevision, definitionsRevision }) {
   const outputDefinitions = {};
 
   // Convert IDL files to JSON, and JSON5 to JSON, in parallel based on how many CPUs we have.
-  const conversionLimit = new Semaphore(Math.max(os.cpus().length, 2));
+  const conversionLimit = new Semaphore(cpuLimit);
   const conversionTasks = allDefinitions.map(async cand => {
     const {name, ext} = path.parse(cand);
 
@@ -156,9 +157,11 @@ async function prepareInTemp({ workPath, headRevision, definitionsRevision }) {
 
 async function prepare() {
   const argv = mri(process.argv.slice(2), {
-    boolean: ['help'],
+    boolean: ['help', 'debug', 'fast'],
     alias: {
       'help': ['h'],
+      'debug': ['d'],
+      'fast': ['f'],
     },
     unknown: (v) => {
       throw new Error(`unexpected flag: ${v}`);
@@ -171,7 +174,11 @@ async function prepare() {
 Prepares a payload containing all Chrome Extension APIs and their feature files
 at a specific major Chrome version. Leave blank for head. Renders a giant JSON
 file to STDOUT.
-  `);
+
+Options:
+  -d, --debug          generate formatted JSON
+  -f, --fast           convert IDLs as fast as possible (no CPU limit)
+`);
     process.exit(0);
   }
   const hasChromeVersion = argv._.length === 1;
@@ -199,10 +206,22 @@ file to STDOUT.
   const tmpobj = tmp.dirSync();
   const workPath = tmpobj.name;
 
+  // Use twice as many CPUs as we have, since there's lots of non-blocking setup/teardown work.
+  // Or just go as fast as possible with -f.
+  const cpuLimit = argv.fast ? 1_000 : Math.max(os.cpus().length, 1);
+  if (!argv.fast) {
+    log.warn(`Using ${chalk.red(cpuLimit)} tasks to do conversion`);
+  }
+
   /** @type {{feature: Object, api: Object}} */
   let out;
   try {
-    out = await prepareInTemp({ headRevision, definitionsRevision, workPath });
+    out = await prepareInTemp({
+      headRevision,
+      definitionsRevision,
+      workPath,
+      cpuLimit,
+    });
   } finally {
     await fsPromises.rm(workPath, {recursive: true, force: true});
   }
@@ -214,7 +233,9 @@ file to STDOUT.
     when: (new Date()),
     ...out,
   };
-  process.stdout.write(JSON.stringify(payload, undefined, 2));
+  const render = Buffer.from(argv.debug ? JSON.stringify(payload, undefined, 2) : JSON.stringify(payload));
+  log.warn(`Generated ${chalk.blue(render.length)} bytes of JSON`);
+  process.stdout.write(render);
 }
 
 prepare();
