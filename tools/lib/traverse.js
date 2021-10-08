@@ -191,7 +191,10 @@ export function expandFunctionParams(spec) {
 
     // This has no return type (void), so push undefined first.
     const result = /** @type {chromeTypes.TypeSpec[]} */ (work.filter((x) => x !== null));
-    expansions.push([{ type: 'void' }, ...result]);
+    expansions.push([
+      spec.returns ?? { type: 'void' },
+      ...result,
+    ]);
   }
 
   return expansions;

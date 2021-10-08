@@ -126,13 +126,65 @@ function objectTemplatesFor(id) {
     case 'api:events.Event':
       return 'H, C = void, A = void';
 
+    case 'api:events.Rule':
+      return 'C = any, A = any';
+
     case 'api:contentSettings.ContentSetting':
       return 'T';
 
     case 'api:types.ChromeSetting':
       return 'T';
   }
-};
+}
+
+
+/**
+ * Potentially replace a found 'any' with a better type.
+ *
+ * @param {string} id
+ * @return {string|undefined}
+ */
+function replaceAnyWith(id) {
+  switch (id) {
+    case 'api:events.Rule.conditions._':
+      return 'C';
+
+    case 'api:events.Rule.actions._':
+      return 'A';
+
+    case 'api:contentSettings.ContentSetting.get.return.setting':
+    case 'api:contentSettings.ContentSetting.get.callback.details.setting':
+    case 'api:types.ChromeSetting.set.details.setting':
+      return 'T';
+
+    case 'api:types.ChromeSetting.onChange.details.value':
+    case 'api:types.ChromeSetting.get.return.value':
+    case 'api:types.ChromeSetting.get.callback.details.value':
+    case 'api:types.ChromeSetting.set.details.value':
+      return 'T';
+  }
+}
+
+
+/**
+ * Potentially do a complete type replacement or upgrade.
+ *
+ * @param {chromeTypes.TypeSpec} spec
+ * @param {string} id
+ */
+function typeOverride(spec, id) {
+  switch (id) {
+    case 'api:events.Event.addListener.callback':
+    case 'api:events.Event.removeListener.callback':
+    case 'api:events.Event.hasListener.callback':
+      return { $ref: 'H' };
+
+    case 'api:events.Event.addRules.rules._':
+    case 'api:events.Event.addRules.callback.rules._':
+    case 'api:events.Event.getRules.callback.rules._':
+      return { $ref: 'Rule', value: [ '', { $ref: 'C' }, { $ref: 'A' } ] };
+  }
+}
 
 
 /**
@@ -218,6 +270,14 @@ function renderTopFunction(spec, id, exportFunction = false) {
   for (const [returnSpec, ...params] of expansions) {
     buf.line();
 
+    // Limit the comments here to the parameters of this specific expansion.
+    const virtualSpec = {
+      paramaters: params,
+      returns: returnSpec,
+      ...spec,
+    };
+    buf.append(renderComment(virtualSpec, id));
+
     const suffix = `: ${renderType(returnSpec, `${id}.return`)};`
     buf.line(`${prefix}${effectiveName}(`);
 
@@ -249,8 +309,17 @@ function renderTopFunction(spec, id, exportFunction = false) {
  * @return {string}
  */
 function renderType(spec, id, ambig = false) {
-  if (spec === undefined || spec.type === 'void') {
-    return 'void';
+  spec = spec || { type: 'void' };
+
+  // Potentially completely override the spec. Used for template magic in Event.
+  const override = typeOverride(spec, id);
+  if (override) {
+    spec = {
+      description: spec.description,
+      deprecated: spec.deprecated,
+      optional: spec.optional,
+      ...override,
+    };
   }
 
   // This should probably never happen. We could instead return `void`.
@@ -269,7 +338,7 @@ function renderType(spec, id, ambig = false) {
     /** @type {string[]|number[]} */
     let primitiveOnly;
     if (typeof spec.enum[0] === 'object') {
-      // TODO(samthor): We could create virtual fake types for this.
+      // TODO(samthor): We could create virtual fake types for this so the comments live on.
       const pairs = /** @type {{name: string}[]} */ (spec.enum);
       primitiveOnly = pairs.map(({name}) => name);
     } else {
@@ -293,24 +362,25 @@ function renderType(spec, id, ambig = false) {
     // HACK: Some array types are missing items, just assume it's a number.
     const { items = { type: 'number' } } = spec;
 
+    const childId = `${id}._`;
+    const inner = renderType(items, childId, true);
+
     // There's a maximum number of items here. Render tuples from min -> max.
     if (spec.maxItems) {
       /** @type {string[]} */
       const parts = [];
 
-      const inner = renderType(items, id, true);
       for (let i = spec.minItems ?? 0; i <= spec.maxItems; ++i) {
         parts.push(`[${new Array(i).fill(inner).join(', ')}]`);
       }
       return parts.length === 1 ? parts[0] : maybeWrapAmbig(parts.join(' | '));
     }
 
-    const t = renderType(items, id, true);
-    const arr = `${t}[]`;
+    const arr = `${inner}[]`;
 
     // This has a minimum item count, but not a maximum.
     if (spec.minItems) {
-      const r = new Array(spec.minItems).fill(t);
+      const r = new Array(spec.minItems).fill(inner);
       return maybeWrapAmbig(`[${r.join(',')}, ...${arr}]`);
     }
 
@@ -377,12 +447,18 @@ function renderType(spec, id, ambig = false) {
       if (!Array.isArray(spec.value)) {
         throw new Error(`unexpected template type for $ref: ${JSON.stringify(spec.value)}`);
       }
-      if (spec.value.length === 2) {
-        const templateType = spec.value[1];
-        const inner = renderType(templateType, id);
-        return `${spec.$ref}<${inner}>`;
+
+      const templates = /** @type {chromeTypes.TypeSpec[]} */ (spec.value.slice(1));
+
+      const inner = templates.map((spec, i) => {
+        const childId = `${id}.#${i}`;
+        return renderType(spec, childId);
+      });
+      if (inner.length) {
+        return `${spec.$ref}<${inner.join(', ')}>`;
       }
-      // TODO: this appears on StorageArea and friends
+
+      // TODO: this appears on StorageArea and friends (name without values)
     }
 
     return spec.$ref;
@@ -454,9 +530,12 @@ function renderType(spec, id, ambig = false) {
     case 'binary':
       return 'ArrayBuffer';
 
+    case 'any':
+      return replaceAnyWith(id) ?? 'any';
+
     case 'boolean':
     case 'string':
-    case 'any':
+    case 'void':
       return spec.type;
   }
 
@@ -471,6 +550,18 @@ function renderType(spec, id, ambig = false) {
 function renderComment(spec, id) {
   /** @type {{name: string, value?: string}[]} */
   const tags = [];
+
+  (spec.parameters ?? []).forEach((param, i) => {
+    let value = `${param.name ?? `_${i}`}`;
+    if (param.description) {
+      value += ` ${param.description}`;
+    }
+    tags.push({name: 'param', value});
+  });
+
+  if (spec.returns?.description) {
+    tags.push({name: 'returns', value: spec.returns.description});
+  }
 
   if (spec.deprecated !== undefined) {
     const value = spec.deprecated ?? '';
