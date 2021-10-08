@@ -140,4 +140,8 @@ export class RenderBuffer {
   render() {
     return this.#lines.join('\n');
   }
+
+  get isEmpty() {
+    return this.#lines.length === 0;
+  }
 }

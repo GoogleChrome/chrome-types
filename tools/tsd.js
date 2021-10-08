@@ -21,7 +21,7 @@ import * as chromeTypes from '../types/chrome.js';
 import { RenderBuffer } from './lib/buffer.js';
 import { isValidToken } from './lib/js-internals.js';
 import * as traverse from './lib/traverse.js';
-import { last } from './lib/traverse.js';
+import { expandFunctionParams, last } from './lib/traverse.js';
 
 
 /** @type {chromeTypes.ProcessedAPIData} */
@@ -41,8 +41,9 @@ entries.forEach(([name, namespace]) => {
 
   // TODO: why two needed?
   buf.line();
+
+  buf.append(renderComment(namespace, `api:${namespace.namespace}`));
   buf.line();
-  // renderComment(buf, namespace);
 
   if (isValidToken(name)) {
     buf.start(`export namespace ${name} {`);
@@ -153,10 +154,22 @@ function renderObjectAsType(prop, id) {
     buf.line(`constructor(arg: Omit<${name}, 'instanceType'>);`);
   }
 
+  let needsGap = false;
+
   const properties = traverse.propertiesFor(prop, id);
   for (const childId in properties) {
     const spec = properties[childId];
-    buf.line();
+
+    const commentBuffer = renderComment(spec, childId);
+    if (!commentBuffer.isEmpty) {
+      buf.line();
+      buf.append(commentBuffer);
+      needsGap = true;
+    } else if (needsGap) {
+      buf.line();
+      needsGap = false;
+    }
+
     const opt = spec.optional ? '?' : '';
     const name = last(childId);
     buf.line(`${name}${opt}: ${renderType(spec, childId)};`);
@@ -230,92 +243,8 @@ function renderTopFunction(spec, id, exportFunction = false) {
 
 
 /**
- * @param {chromeTypes.TypeSpec} spec
- */
-function expandFunctionParams(spec) {
-  const params = (spec.parameters ?? []).filter(({nodoc}) => !nodoc);
-
-  // This includes the return value in the 0th position.
-  /** @type {chromeTypes.TypeSpec[][]} */
-  const expansions = [];
-
-  if (spec.returns_async) {
-    if ((spec.returns_async.parameters?.length ?? 0) > 1) {
-      throw new Error(`returns_async with too many params: ${JSON.stringify(spec.returns_async)}`);
-    }
-    // This can be undefined, which is fine: treated as void for the Promise type.
-    const singleReturnsAsyncParam = spec.returns_async.parameters?.[0];
-
-    // Call ourselves again without `returns_async`, so we can use the `Promise` return type.
-    // Replace the 0th result with a Promise.
-    const { returns_async: _, ...clone } = spec;
-    const promisified = expandFunctionParams(clone);
-
-    for (const out of promisified) {
-      out[0] = {
-        $ref: 'Promise',
-        value: [
-          'return',
-          singleReturnsAsyncParam,
-        ],
-      }
-    }
-    expansions.push(...promisified);
-
-    // Push this as a callback.
-    params.push(spec.returns_async);
-  }
-
-  let seenNonOptional = false;
-
-  /** @type {number[]} */
-  const optionalPositionsLeft = [];
-
-  // Working backwards, find all optional positions found at a lower index than required ones. For
-  // example, for (req, opt, req, opt), the result array will be [1] as the first required argument
-  // is at 2.
-  for (let i = params.length - 1; i >= 0; --i) {
-    const p = params[i];
-    if (!p.optional) {
-      seenNonOptional = true;
-      continue;
-    }
-    if (!seenNonOptional) {
-      continue;
-    }
-    params[i] = { ...p };
-    delete params[i].optional;
-    optionalPositionsLeft.unshift(i);
-  }
-
-  // Walk through all options 0-(2 ** positions). For the boring case, this will just be one, and
-  // no bits will be set (value zero). For complex cases, this will enumerate through all possible
-  // optional arguments, enabling and disabling them as necessary.
-  const target = 1 << optionalPositionsLeft.length;
-
-  for (let i = 0; i < target; ++i) {
-    /** @type {(chromeTypes.TypeSpec?)[]} */
-    const work = params.slice();
-    for (let j = 0; j < optionalPositionsLeft.length; ++j) {
-      const bit = 1 << j;
-      if (i & bit) {
-        const index = optionalPositionsLeft[j];
-        work[index] = null;
-      }
-    }
-
-    // This has no return type (void), so push undefined first.
-    const result = /** @type {chromeTypes.TypeSpec[]} */ (work.filter((x) => x !== null));
-    expansions.push([{ type: 'void' }, ...result]);
-  }
-
-  return expansions;
-}
-
-
-/**
  * @param {chromeTypes.TypeSpec|undefined} spec
- * @param {string?} id
+ * @param {string} id
  * @param {boolean} ambig whether this is in an ambigious context (e.g., "X[]")
  * @return {string}
  */
@@ -354,7 +283,10 @@ function renderType(spec, id, ambig = false) {
     if (spec.choices.length === 0) {
       throw new Error(`zero choices`);
     }
-    return maybeWrapAmbig(spec.choices.map((choice) => renderType(choice, null)).join(' | '));
+    return maybeWrapAmbig(spec.choices.map((choice, i) => {
+      const childId = `${id}._${i}`;
+      return renderType(choice, childId);
+    }).join(' | '));
   }
 
   if (spec.type === 'array') {
@@ -409,9 +341,9 @@ function renderType(spec, id, ambig = false) {
     const buf = new RenderBuffer();
     buf.start('{');
 
-    let first = true;
+    let needsGap = false;
     if (additionalPropertiesPart) {
-      first = false;
+      needsGap = true;
       buf.line(additionalPropertiesPart + ',');
     }
 
@@ -421,12 +353,15 @@ function renderType(spec, id, ambig = false) {
       //   continue;
       // }
   
-      if (first) {
-        first = false;
-      } else {
+      const commentBuffer = renderComment(prop, childId);
+      if (!commentBuffer.isEmpty) {
         buf.line();
+        buf.append(commentBuffer);
+        needsGap = true;
+      } else if (needsGap) {
+        buf.line();
+        needsGap = false;
       }
-      // renderComment(buf, prop);
 
       const name = last(childId);
       const opt = prop.optional ? '?' : '';
@@ -476,16 +411,21 @@ function renderType(spec, id, ambig = false) {
       }
 
       params.forEach((param, i) => {
-        if (needsGap) {
+        const name = param.name || `_${i}`;
+        const childId = `${id}.${name}`;
+
+        const commentBuffer = renderComment(param, childId);
+        if (!commentBuffer.isEmpty) {
           buf.line();
+          buf.append(commentBuffer);
+          needsGap = true;
+        } else if (needsGap) {
+          buf.line();
+          needsGap = false;
         }
 
-        // if (renderComment(buf, p)) {
-        //   needsGap = true;
-        // }
-
         const opt = i >= lastOptional && param.optional ? '?' : '';
-        buf.line(`${param.name}${opt}: ${renderType(param, `${id}.${param.name}`)},`);
+        buf.line(`${param.name}${opt}: ${renderType(param, childId)},`);
       });
 
       buf.end(')');
@@ -521,4 +461,33 @@ function renderType(spec, id, ambig = false) {
   }
 
   throw new Error(`unsupported type: ${JSON.stringify(spec)}`);
+}
+
+
+/**
+ * @param {chromeTypes.TypeSpec} spec
+ * @param {string} id
+ */
+function renderComment(spec, id) {
+  /** @type {{name: string, value?: string}[]} */
+  const tags = [];
+
+  if (spec.deprecated !== undefined) {
+    const value = spec.deprecated ?? '';
+    tags.push({name: 'deprecated', value});
+  }
+
+  const buf = new RenderBuffer();
+
+  // TODO: reformat description
+  let description = spec.description || '';
+  if (description.toLocaleLowerCase() === 'none') {
+    description = '';
+  }
+
+  if (description || tags.length) {
+    buf.comment(spec.description, tags);
+  }
+
+  return buf;
 }
