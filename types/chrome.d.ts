@@ -21,7 +21,7 @@ export interface FeatureSpec {
 
 }
 
-interface SharedSpec {
+export interface SharedSpec {
   description?: string;
   deprecated?: string | null;
   nodoc?: boolean | 'true';
@@ -65,13 +65,16 @@ export interface TypeSpec extends SharedSpec {
   returns?: TypeSpec;
   returns_async?: TypeSpec;
 
-  enum?: string[] | { name: string, description?: string }[];
+  enum?: string[] | number[] | { name: string, description?: string }[];
   choices?: TypeSpec[];
 
   // for type='array'
   items?: TypeSpec;
   minItems?: number;
   maxItems?: number;
+
+  // only for top-level namespace types
+  noinline_doc?: boolean | 'True';
 }
 
 /**
