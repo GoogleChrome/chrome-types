@@ -53,7 +53,7 @@ export interface TypeSpec extends SharedSpec {
   $ref?: string;
   isInstanceOf?: string;
 
-  value?: number | string | [string] | [string, TypeSpec] | {};
+  value?: number | string | [string] | [string, ...TypeSpec[]] | {};
 
   minimum?: number;
   maximum?: number;
@@ -69,6 +69,7 @@ export interface TypeSpec extends SharedSpec {
 
   enum?: string[] | number[] | { name: string, description?: string }[];
   choices?: TypeSpec[];
+  _choicesUnion?: true;  // does not exist, used for special-casing
 
   // for type='array'
   items?: TypeSpec;

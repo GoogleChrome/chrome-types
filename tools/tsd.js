@@ -104,6 +104,8 @@ function renderNamespace(namespace) {
     buf.line();
     const name = last(id);
     const decl = spec.optional ? 'let' : 'const';
+
+    buf.append(renderComment(spec, id));
     buf.line(`export ${decl} ${name}: ${renderType(spec, id)};`);
   }
 
@@ -355,7 +357,7 @@ function renderType(spec, id, ambig = false) {
     return maybeWrapAmbig(spec.choices.map((choice, i) => {
       const childId = `${id}._${i}`;
       return renderType(choice, childId);
-    }).join(' | '));
+    }).join(spec._choicesUnion ? ' & ' : ' | '));
   }
 
   if (spec.type === 'array') {
@@ -443,6 +445,22 @@ function renderType(spec, id, ambig = false) {
   }
 
   if (spec.$ref) {
+    // This is a special-case: `api:storage.sync` and friends have properties that are combined
+    // with any refs. We treat this as a "choice".
+    if (spec.properties && Object.keys(spec.properties).length) {
+      const { properties, $ref, ...virtualSpec } = spec;
+
+      delete virtualSpec.type;
+      virtualSpec.choices = [
+        { type: 'object', properties },
+        { $ref },
+      ];
+      virtualSpec._choicesUnion = true;
+
+      return renderType(virtualSpec, id);
+    }
+
+    // This (probably) has a template type.
     if (spec.value) {
       if (!Array.isArray(spec.value)) {
         throw new Error(`unexpected template type for $ref: ${JSON.stringify(spec.value)}`);
