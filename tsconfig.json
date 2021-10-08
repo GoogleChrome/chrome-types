@@ -20,6 +20,6 @@
   },
   "include": [
     // include the JS files you'd like to check here
-    "builder/**/*.js",
+    "tools/**/*.js",
   ],
 }
