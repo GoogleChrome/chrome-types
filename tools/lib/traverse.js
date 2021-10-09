@@ -1,6 +1,21 @@
+/**
+ * Copyright 2021 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 
 import * as chromeTypes from '../../types/chrome.js';
-
 
 
 /**
@@ -85,11 +100,41 @@ export function propertiesFor(source, id) {
   });
 
   forEach(source.events, id, (prop, id) => {
-    const { returns, parameters, type, ...outer } = prop;
-    if (type !== 'function') {
-      console.warn('got declarative event', prop);
-      // TODO: can happen in declarative event?
-      // throw new Error(`got bad event type: ${JSON.stringify(prop)}`);
+    const eprop = /** @type {chromeTypes.EventSpec} */ (prop);
+    const { returns, parameters, type, options, ...outer } = eprop;
+
+    if (options?.supportsListeners === false) {
+      if (!options.conditions?.length || !options.actions?.length) {
+        throw new Error(`invalid declarative event: ${JSON.stringify(prop)}`);
+      }
+
+      // Look for the left part, e.g. "api:declarativeContent.onPageChanged" =>
+      // "declarativeContent". The strings we get from Chrome's source code start with this, even
+      // though it's redundant.
+      const leftPart = id.split('.')[0].split(':')[1];
+      if (!leftPart) {
+        throw new Error(`could not find left part: ${id}`);
+      }
+      /** @type {(s: string[]) => chromeTypes.TypeSpec[]} */
+      const toRef = (s) => {
+        return s.map((raw) => {
+          if (raw.startsWith(leftPart + '.')) {
+            raw = raw.substr(leftPart.length + 1);
+          }
+          return { $ref: raw };
+        });
+      };
+
+      out[id] = {
+        $ref: 'events.Event',
+        value: [
+          last(id),
+          { type: 'void' },
+          { choices: toRef(options.conditions) },
+          { choices: toRef(options.actions) },
+        ],
+      };
+      return;
     }
 
     /** @type {chromeTypes.TypeSpec} */

@@ -357,7 +357,7 @@ function renderType(spec, id, ambig = false) {
     return maybeWrapAmbig(spec.choices.map((choice, i) => {
       const childId = `${id}._${i}`;
       return renderType(choice, childId);
-    }).join(spec._choicesUnion ? ' & ' : ' | '));
+    }).join(' | '));
   }
 
   if (spec.type === 'array') {
@@ -448,16 +448,8 @@ function renderType(spec, id, ambig = false) {
     // This is a special-case: `api:storage.sync` and friends have properties that are combined
     // with any refs. We treat this as a "choice".
     if (spec.properties && Object.keys(spec.properties).length) {
-      const { properties, $ref, ...virtualSpec } = spec;
-
-      delete virtualSpec.type;
-      virtualSpec.choices = [
-        { type: 'object', properties },
-        { $ref },
-      ];
-      virtualSpec._choicesUnion = true;
-
-      return renderType(virtualSpec, id);
+      const { properties, ...rest } = spec;
+      return `${renderType(rest, id)} & ${renderType({ properties, type: 'object' }, `${id}.!`)}`;
     }
 
     // This (probably) has a template type.

@@ -21,6 +21,10 @@ export interface FeatureSpec {
 
 }
 
+
+export type SpecGroup = {[name: string]: TypeSpec} | TypeSpec[] | undefined;
+
+
 export interface SharedSpec {
   description?: string;
   deprecated?: string | null;
@@ -69,7 +73,6 @@ export interface TypeSpec extends SharedSpec {
 
   enum?: string[] | number[] | { name: string, description?: string }[];
   choices?: TypeSpec[];
-  _choicesUnion?: true;  // does not exist, used for special-casing
 
   // for type='array'
   items?: TypeSpec;
