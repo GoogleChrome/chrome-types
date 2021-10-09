@@ -29,6 +29,23 @@ export function last(id) {
   return id;
 }
 
+
+/**
+ * @param {string} id
+ * @return {string}
+ */
+export function namespaceNameFromId(id) {
+  if (!id.startsWith('api:')) {
+    return '';
+  }
+  const leftDot = id.indexOf('.');
+  if (leftDot === -1) {
+    return id.substring(4);
+  }
+  return id.substring(4, leftDot);
+}
+
+
 export class TraverseContext {
   #filter;
 
@@ -78,15 +95,15 @@ export class TraverseContext {
         // Look for the left part, e.g. "api:declarativeContent.onPageChanged" =>
         // "declarativeContent". The strings we get from Chrome's source code start with this, even
         // though it's redundant.
-        const leftPart = id.split('.')[0].split(':')[1];
-        if (!leftPart) {
+        const namespaceName = namespaceNameFromId(id);
+        if (!namespaceName) {
           throw new Error(`could not find left part: ${id}`);
         }
         /** @type {(s: string[]) => chromeTypes.TypeSpec[]} */
         const toRef = (s) => {
           return s.map((raw) => {
-            if (raw.startsWith(leftPart + '.')) {
-              raw = raw.substr(leftPart.length + 1);
+            if (raw.startsWith(namespaceName + '.')) {
+              raw = raw.substr(namespaceName.length + 1);
             }
             return { $ref: raw };
           });

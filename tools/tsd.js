@@ -22,6 +22,7 @@ import { RenderBuffer } from './lib/buffer.js';
 import { isValidToken } from './lib/js-internals.js';
 import * as traverse from './lib/traverse.js';
 import { last } from './lib/traverse.js';
+import { buildNamespaceAwareMarkdownRewrite } from './lib/comment.js';
 
 
 /** @type {chromeTypes.ProcessedAPIData} */
@@ -36,6 +37,9 @@ const context = new traverse.TraverseContext((spec, id) => {
   }
   return !spec.nodoc;
 });
+
+
+const commentRewriter = buildNamespaceAwareMarkdownRewrite(Object.keys(o.api));
 
 
 const buf = new RenderBuffer();
@@ -96,6 +100,8 @@ function renderNamespace(namespace) {
 
     buf.line();
     const name = last(id);
+
+    buf.append(renderComment(spec, id));
 
     if (spec.type === 'object') {
       // This is an interface.
@@ -588,17 +594,42 @@ function renderComment(spec, id) {
     tags.push({name: 'deprecated', value});
   }
 
+  if (spec.enum) {
+    for (const e of spec.enum) {
+      if (typeof e === 'object' && e.description) {
+        tags.push({name: 'chrome-enum', value: `\"${e.name}\" ${e.description}`});
+      }
+    }
+  }
+
   const buf = new RenderBuffer();
 
-  // TODO: reformat description
   let description = spec.description || '';
   if (description.toLocaleLowerCase() === 'none') {
     description = '';
   }
 
-  if (description || tags.length) {
-    buf.comment(spec.description, tags);
+  // Nothing to render, just return an empty buffer.
+  if (!description && !tags.length) {
+    return buf;
   }
 
+  const namespaceName = traverse.namespaceNameFromId(id);
+
+  // Rewrite the description.
+  if (description) {
+    const update = commentRewriter(namespaceName, description);
+    description = update;
+  }
+
+  // Rewrite any tags with values.
+  for (const tag of tags) {
+    if (tag.value) {
+      const update = commentRewriter(namespaceName, tag.value);
+      tag.value = update;
+    }
+  }
+
+  buf.comment(description, tags);
   return buf;
 }

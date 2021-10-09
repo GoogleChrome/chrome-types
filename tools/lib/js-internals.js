@@ -26,15 +26,20 @@ const keywords = [
   // There's more, but we only hit a few for now.
 ];
 
+
 /**
  * @param {string} arg 
  * @return {boolean}
  */
 export function isValidToken(arg) {
+  // TODO: This could implement https://mathiasbynens.be/notes/javascript-identifiers, but this is
+  // fine for now.
+
   if (keywords.includes(arg)) {
     return false;
   }
   if (arg[0] >= '0' && arg[0] <= '9') {
+    // can't start with a number
     return false;
   }
 

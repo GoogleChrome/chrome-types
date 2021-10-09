@@ -15,6 +15,11 @@
  */
 
 
+/**
+ * @fileoverview Provides a simple semaphore class for running multiple tasks.
+ */
+
+
 export class Semaphore {
   #count = 0;
 
@@ -22,9 +27,14 @@ export class Semaphore {
   #pending = [];
 
   constructor(count = 0) {
-    this.#count = Math.ceil(count || 0);  // ensure integer
+    this.#count = Math.max(0, Math.ceil(count || 0));  // ensure integer >=0
   }
 
+  /**
+   * Increases the available count on this semaphore.
+   *
+   * @param {number} value
+   */
   release(value = 1) {
     for (let i = 0; i < value; ++i) {
       const next = this.#pending.shift();
@@ -36,6 +46,12 @@ export class Semaphore {
     }
   }
 
+  /**
+   * Acquire a lock on the semaphore if its count is >0. Otherwise, resolves when the next lock is
+   * released.
+   *
+   * @return {Promise<void>}
+   */
   async acquire() {
     if (this.#count === 0) {
       await /** @type {Promise<void>} */ (new Promise((r) => this.#pending.push(r)));

@@ -82,7 +82,7 @@ export class RenderBuffer {
     if (raw) {
       raw = raw.replace(/\*\//g, '*\\/').trim();
 
-      raw.split('\n').map((line) => line.trim()).forEach((line) => {
+      raw.split('\n').map((line) => line.trimEnd()).forEach((line) => {
         if (line) {
           this.line(` * ${line}`);
         } else {
