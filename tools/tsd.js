@@ -21,11 +21,21 @@ import * as chromeTypes from '../types/chrome.js';
 import { RenderBuffer } from './lib/buffer.js';
 import { isValidToken } from './lib/js-internals.js';
 import * as traverse from './lib/traverse.js';
-import { expandFunctionParams, last } from './lib/traverse.js';
+import { last } from './lib/traverse.js';
 
 
 /** @type {chromeTypes.ProcessedAPIData} */
 const o = JSON.parse(await getStdin());
+
+
+const context = new traverse.TraverseContext((spec, id) => {
+  switch (id) {
+    case 'api:declarativeContent.ShowAction':
+      // This is incorrectly referenced even though it's marked nodoc.
+      return true;
+  }
+  return !spec.nodoc;
+});
 
 
 const buf = new RenderBuffer();
@@ -77,7 +87,7 @@ function renderNamespace(namespace) {
   const toplevel = `api:${namespace.namespace}`;
 
   // Render top-level types. These are either interfaces or types (probably enum or choice).
-  traverse.forEach(namespace.types, toplevel, (spec, id) => {
+  context.forEach(namespace.types, toplevel, (spec, id) => {
     // HACK: We get a type starting with a number at one point, but it's only used for the manifest.
     // It's invalid.
     if (id.endsWith('.3DFeature')) {
@@ -98,7 +108,7 @@ function renderNamespace(namespace) {
   });
 
   // Render top-level properties. These are `const` or in one case, `let`.
-  const properties = traverse.propertiesFor(namespace, toplevel);
+  const properties = context.propertiesFor(namespace, toplevel);
   for (const id in properties) {
     const spec = properties[id];
     buf.line();
@@ -110,7 +120,7 @@ function renderNamespace(namespace) {
   }
 
   // Render top-level functions.
-  traverse.forEach(namespace.functions, toplevel, (spec, id) => {
+  context.forEach(namespace.functions, toplevel, (spec, id) => {
     buf.append(renderTopFunction(spec, id, true));
   });
 
@@ -210,7 +220,7 @@ function renderObjectAsType(prop, id) {
 
   let needsGap = false;
 
-  const properties = traverse.propertiesFor(prop, id);
+  const properties = context.propertiesFor(prop, id);
   for (const childId in properties) {
     const spec = properties[childId];
 
@@ -229,7 +239,7 @@ function renderObjectAsType(prop, id) {
     buf.line(`${name}${opt}: ${renderType(spec, childId)};`);
   }
 
-  traverse.forEach(prop.functions, id, (spec, id) => {
+  context.forEach(prop.functions, id, (spec, id) => {
     buf.append(renderTopFunction(spec, id, false));
   });
 
@@ -268,7 +278,7 @@ function renderTopFunction(spec, id, exportFunction = false) {
     prefix = 'export function ';
   }
 
-  const expansions = expandFunctionParams(spec);
+  const expansions = context.expandFunctionParams(spec, id);
   for (const [returnSpec, ...params] of expansions) {
     buf.line();
 
@@ -399,7 +409,7 @@ function renderType(spec, id, ambig = false) {
     let props = {};
 
     if (id !== null) {
-      props = traverse.propertiesFor(spec, id);
+      props = context.propertiesFor(spec, id);
     } else {
       // TODO: ignored for now
       // throw new Error(`got inner object without id: ${JSON.stringify(spec)}`);
