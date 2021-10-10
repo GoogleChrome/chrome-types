@@ -15,6 +15,17 @@
  */
 
 
+/**
+ * @fileoverview This file contains helpers used to override various types from Chromium source.
+ *
+ * It's run on all versions, even historic ones, so we can't remove historic hacks if they're
+ * eventually fixed.
+ *
+ * TODO(samthor): These are all static top-level methods; this could instead be an object we
+ * instantiate based on Chrome version.
+ */
+
+
 import * as chromeTypes from '../../types/chrome.js';
 
 
@@ -38,6 +49,9 @@ export function isVisible(spec, id) {
 /**
  * These are the template overrides for interface definitions within Chrome's extensions codebase.
  *
+ * Chrome has no way of specifying that a type might be templated, so this doesn't upgrade a
+ * passed "spec".
+ *
  * @param {string} id
  */
 export function objectTemplatesFor(id) {
@@ -58,40 +72,15 @@ export function objectTemplatesFor(id) {
 
 
 /**
- * Potentially replace a found 'any' with a better type.
- *
- * @param {string} id
- * @return {string|undefined}
- */
-export function replaceAnyWith(id) {
-  switch (id) {
-    case 'api:events.Rule.conditions._':
-      return 'C';
-
-    case 'api:events.Rule.actions._':
-      return 'A';
-
-    case 'api:contentSettings.ContentSetting.get.return.setting':
-    case 'api:contentSettings.ContentSetting.get.callback.details.setting':
-    case 'api:types.ChromeSetting.set.details.setting':
-      return 'T';
-
-    case 'api:types.ChromeSetting.onChange.details.value':
-    case 'api:types.ChromeSetting.get.return.value':
-    case 'api:types.ChromeSetting.get.callback.details.value':
-    case 'api:types.ChromeSetting.set.details.value':
-      return 'T';
-  }
-}
-
-
-/**
- * Potentially do a complete type replacement or upgrade.
+ * Optionally do a complete type replacement or upgrade prior to render.
  *
  * @param {chromeTypes.TypeSpec} spec
  * @param {string} id
+ * @return {chromeTypes.TypeSpec|undefined}
  */
 export function typeOverride(spec, id) {
+
+  // Replace callback types to do with Event.
   switch (id) {
     case 'api:events.Event.addListener.callback':
     case 'api:events.Event.removeListener.callback':
@@ -101,14 +90,38 @@ export function typeOverride(spec, id) {
     case 'api:events.Event.addRules.rules._':
     case 'api:events.Event.addRules.callback.rules._':
     case 'api:events.Event.getRules.callback.rules._':
-      return { $ref: 'Rule', value: [ '', { $ref: 'C' }, { $ref: 'A' } ] };
+      return { $ref: 'Rule', value: ['', { $ref: 'C' }, { $ref: 'A' }] };
   }
 
+  // Fix isInstanceOf usages.
   switch (spec.isInstanceOf) {
     case 'Promise':
-      return { $ref: 'Promise', value: [ '', { type: 'any' }]};
+      return { $ref: 'Promise', value: ['', { type: 'any' }] };
 
     case 'global':
       return { $ref: 'Window' };
   }
+
+  // Upgrade ambiguous "any" to better template types as needed.
+  if (spec.type === 'any') {
+    switch (id) {
+      case 'api:events.Rule.conditions._':
+        return { $ref: 'C' };
+
+      case 'api:events.Rule.actions._':
+        return { $ref: 'A' };
+
+      case 'api:contentSettings.ContentSetting.get.return.setting':
+      case 'api:contentSettings.ContentSetting.get.callback.details.setting':
+      case 'api:types.ChromeSetting.set.details.setting':
+        return { $ref: 'T' };
+
+      case 'api:types.ChromeSetting.onChange.details.value':
+      case 'api:types.ChromeSetting.get.return.value':
+      case 'api:types.ChromeSetting.get.callback.details.value':
+      case 'api:types.ChromeSetting.set.details.value':
+        return { $ref: 'T' };
+    }
+  }
+
 }

@@ -57,6 +57,14 @@ export class TraverseContext {
   }
 
   /**
+   * @param {chromeTypes.TypeSpec} spec
+   * @param {string} id
+   */
+  filter(spec, id) {
+    return this.#filter(spec, id);
+  }
+
+  /**
    * @param {chromeTypes.SpecGroup} source
    * @param {string} parent
    * @param {(spec: chromeTypes.TypeSpec, id: string) => void} fn

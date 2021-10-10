@@ -40,9 +40,9 @@ export interface SharedSpec {
 /**
  * A primitive type understood by Chrome's extensions.
  *
- * Note that `void` doesn't appear in source, but it's helpful for our code.
+ * Note that `void` and `undefined` doesn't appear in source, but it's helpful for our code.
  */
-export type PrimitiveType = 'void' | 'array' | 'any' | 'int64' | 'binary' | 'boolean' | 'integer' | 'double' | 'number' | 'string' | 'object' | 'function';
+export type PrimitiveType = 'void' | 'undefined' | 'array' | 'any' | 'int64' | 'binary' | 'boolean' | 'integer' | 'double' | 'number' | 'string' | 'object' | 'function';
 
 /**
  * This is a raw type as found inside Chrome's JSON extension definitions.

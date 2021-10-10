@@ -46,7 +46,7 @@ buf.start('declare namespace chrome {');
 const entries = Object.entries(o.api);
 entries.sort(([a], [b]) => a.localeCompare(b));
 entries.forEach(([_, namespace]) => {
-  const namespaceBuffer = renderNamespace(namespace);
+  const namespaceBuffer = maybeRenderNamespace(namespace);
   if (namespaceBuffer) {
     buf.append(namespaceBuffer);
   }
@@ -66,10 +66,14 @@ process.stdout.write(buf.render());
 
 
 /**
+ * Optionally render a namespace. Renders nothing if it has no content.
+ *
  * @param {chromeTypes.NamespaceSpec} namespace
+ * @return {RenderBuffer?}
  */
-function renderNamespace(namespace) {
-  if (namespace.nodoc) {
+function maybeRenderNamespace(namespace) {
+  const toplevel = `api:${namespace.namespace}`;
+  if (!context.filter(namespace, toplevel)) {
     return null;
   }
 
@@ -271,6 +275,9 @@ function renderTopFunction(spec, id, exportFunction = false) {
 
 
 /**
+ * Renders an type inline. This usually returns a single line, but can also return multiple (e.g.,
+ * if the type represents an object with many properties).
+ *
  * @param {chromeTypes.TypeSpec|undefined} spec
  * @param {string} id
  * @param {boolean} ambig whether this is in an ambigious context (e.g., "X[]")
@@ -279,7 +286,7 @@ function renderTopFunction(spec, id, exportFunction = false) {
 function renderType(spec, id, ambig = false) {
   spec = spec || { type: 'void' };
 
-  // Potentially completely override the spec. Used for template magic in Event.
+  // Potentially completely override the rendered spec.
   spec = overrideApi.typeOverride(spec, id) ?? spec;
 
   // This should probably never happen. We could instead return `void`.
@@ -297,7 +304,7 @@ function renderType(spec, id, ambig = false) {
 
   if (spec.enum) {
     if (!['string', 'integer'].includes(spec.type ?? '') || spec.enum.length === 0) {
-      throw new Error(`invalid enum: ${spec.type} / ${JSON.stringify(spec.enum)}`);
+      throw new Error(`invalid enum: ${JSON.stringify(spec)}`);
     }
 
     /** @type {string[]|number[]} */
@@ -305,7 +312,7 @@ function renderType(spec, id, ambig = false) {
     if (typeof spec.enum[0] === 'object') {
       // TODO(samthor): We could create virtual fake types for this so the comments live on.
       const pairs = /** @type {{name: string}[]} */ (spec.enum);
-      primitiveOnly = pairs.map(({name}) => name);
+      primitiveOnly = pairs.map(({ name }) => name);
     } else {
       primitiveOnly = /** @type {string[]|number[]} */ (spec.enum);
     }
@@ -315,7 +322,7 @@ function renderType(spec, id, ambig = false) {
 
   if (spec.choices) {
     if (spec.choices.length === 0) {
-      throw new Error(`zero choices`);
+      throw new Error(`invalid choices, no options: ${JSON.stringify(spec)}`);
     }
     return maybeWrapAmbig(spec.choices.map((choice, i) => {
       const childId = `${id}._${i}`;
@@ -327,8 +334,7 @@ function renderType(spec, id, ambig = false) {
     // HACK: Some array types are missing items, just assume it's a number.
     const { items = { type: 'number' } } = spec;
 
-    const childId = `${id}._`;
-    const inner = renderType(items, childId, true);
+    const inner = renderType(items, `${id}._`, true);
 
     // There's a maximum number of items here. Render tuples from min -> max.
     if (spec.maxItems) {
@@ -341,20 +347,18 @@ function renderType(spec, id, ambig = false) {
       return parts.length === 1 ? parts[0] : maybeWrapAmbig(parts.join(' | '));
     }
 
-    const arr = `${inner}[]`;
-
     // This has a minimum item count, but not a maximum.
     if (spec.minItems) {
       const r = new Array(spec.minItems).fill(inner);
-      return maybeWrapAmbig(`[${r.join(',')}, ...${arr}]`);
+      return maybeWrapAmbig(`[${r.join(',')}, ...${inner}[]]`);
     }
 
     // This is an actually boring array.
-    return arr;
+    return `${inner}[]`;
   }
 
   if (spec.type === 'object') {
-    const additionalPropertiesPart = spec.additionalProperties ? 
+    const additionalPropertiesPart = spec.additionalProperties ?
       `[name: string]: ${renderType(spec.additionalProperties, id)}` :
       '';
 
@@ -376,7 +380,7 @@ function renderType(spec, id, ambig = false) {
 
     for (const childId in props) {
       const prop = props[childId];
-  
+
       const commentBuffer = renderComment(prop, childId);
       if (!commentBuffer.isEmpty) {
         buf.line();
@@ -438,7 +442,7 @@ function renderType(spec, id, ambig = false) {
 
     // Filter nodoc parameters, which appear occasionally. They are effectively optional params
     // so just remove them here.
-    const params = (spec.parameters ?? []).filter(({nodoc}) => !nodoc);
+    const params = (spec.parameters ?? []).filter(({ nodoc }) => !nodoc);
     if (params.length) {
       buf.start('(');
       let needsGap = false;
@@ -489,14 +493,14 @@ function renderType(spec, id, ambig = false) {
     case 'integer':
     case 'number':
     case 'double':
+      // Unfortunately TypeScript doesn't let us specify floating point vs integer, nor
+      // minimum/maximum values for numbers (which are in the definitions).
       return 'number';
 
     case 'binary':
       return 'ArrayBuffer';
 
     case 'any':
-      return overrideApi.replaceAnyWith(id) ?? 'any';
-
     case 'boolean':
     case 'string':
     case 'void':
@@ -521,16 +525,16 @@ function renderComment(spec, id) {
     if (param.description) {
       value += ` ${param.description}`;
     }
-    tags.push({name: 'param', value});
+    tags.push({ name: 'param', value });
   });
 
   if (spec.returns?.description) {
-    tags.push({name: 'returns', value: spec.returns.description});
+    tags.push({ name: 'returns', value: spec.returns.description });
   }
 
   if (spec.deprecated !== undefined) {
     const value = spec.deprecated ?? '';
-    tags.push({name: 'deprecated', value});
+    tags.push({ name: 'deprecated', value });
   }
 
   // This adds `@chrome-enum "NAME" description` to the comment.
@@ -538,7 +542,7 @@ function renderComment(spec, id) {
   if (spec.enum) {
     for (const e of spec.enum) {
       if (typeof e === 'object' && e.description) {
-        tags.push({name: 'chrome-enum', value: `${JSON.stringify(e.name)} ${e.description}`});
+        tags.push({ name: 'chrome-enum', value: `${JSON.stringify(e.name)} ${e.description}` });
       }
     }
   }
