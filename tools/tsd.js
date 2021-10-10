@@ -23,6 +23,8 @@ import { isValidToken } from './lib/js-internals.js';
 import * as traverse from './lib/traverse.js';
 import { last } from './lib/traverse.js';
 import { buildNamespaceAwareMarkdownRewrite } from './lib/comment.js';
+import * as overrideApi from './override/index.js';
+import * as fs from 'fs';
 
 
 /** @type {chromeTypes.ProcessedAPIData} */
@@ -30,12 +32,8 @@ const o = JSON.parse(await getStdin());
 
 
 const context = new traverse.TraverseContext((spec, id) => {
-  switch (id) {
-    case 'api:declarativeContent.ShowAction':
-      // This is incorrectly referenced even though it's marked nodoc.
-      return true;
-  }
-  return !spec.nodoc;
+  const visible = overrideApi.isVisible(spec, id);
+  return visible;
 });
 
 
@@ -47,35 +45,24 @@ buf.start('declare namespace chrome {');
 
 const entries = Object.entries(o.api);
 entries.sort(([a], [b]) => a.localeCompare(b));
-entries.forEach(([name, namespace]) => {
-  const content = renderNamespace(namespace);
-  if (!content) {
-    return;
-  }
-
-  // TODO: why two needed?
-  buf.line();
-
-  buf.append(renderComment(namespace, `api:${namespace.namespace}`));
-  buf.line();
-
-  if (isValidToken(name)) {
-    buf.start(`export namespace ${name} {`);
-    buf.append(content);
-    buf.end('}');
-  } else {
-    // Allow keywords as namespace names by declaring and then re-exporting.
-    buf.start(`namespace _${name} {`);
-    buf.append(content);
-    buf.end('}');
-    buf.line(`export {_${name} as ${name}};`)
+entries.forEach(([_, namespace]) => {
+  const namespaceBuffer = renderNamespace(namespace);
+  if (namespaceBuffer) {
+    buf.append(namespaceBuffer);
   }
 });
 
 buf.end('}');
 buf.line();
 
+
+const preambleFile = new URL('../content/preamble.d.ts', import.meta.url);
+const preambleContent = fs.readFileSync(preambleFile);
+
+process.stdout.write(preambleContent);
+process.stdout.write(`\n\n// Generated on ${new Date}\n\n\n`);
 process.stdout.write(buf.render());
+
 
 
 /**
@@ -86,20 +73,54 @@ function renderNamespace(namespace) {
     return null;
   }
 
+  const content = renderInnerNamespace(namespace);
+  if (content.isEmpty) {
+    return null;
+  }
+
+  const buf = new RenderBuffer();
+
+  buf.line();
+  buf.append(renderComment(namespace, `api:${namespace.namespace}`));
+  buf.line();
+
+  const { namespace: name } = namespace;
+  if (isValidToken(name)) {
+    buf.start(`export namespace ${name} {`);
+    buf.append(content);
+    buf.end('}');
+  } else {
+    // Allow keywords as namespace names by declaring and then re-exporting.
+    // This only matters for `api:debugger`.
+    buf.start(`namespace _${name} {`);
+    buf.append(content);
+    buf.end('}');
+    buf.line(`export {_${name} as ${name}};`)
+  }
+
+  return buf;
+}
+
+
+/**
+ * @param {chromeTypes.NamespaceSpec} namespace
+ */
+function renderInnerNamespace(namespace) {
   const buf = new RenderBuffer();
 
   const toplevel = `api:${namespace.namespace}`;
 
   // Render top-level types. These are either interfaces or types (probably enum or choice).
   context.forEach(namespace.types, toplevel, (spec, id) => {
+    const name = last(id);
+
     // HACK: We get a type starting with a number at one point, but it's only used for the manifest.
-    // It's invalid.
-    if (id.endsWith('.3DFeature')) {
+    // It's invalid, and we can't re-export this anyway.
+    if (!isValidToken(name)) {
       return;
     }
 
     buf.line();
-    const name = last(id);
 
     buf.append(renderComment(spec, id));
 
@@ -131,77 +152,6 @@ function renderNamespace(namespace) {
   });
 
   return buf;
-}
-
-
-/**
- * These are the template overrides for interface definitions within Chrome's extensions codebase.
- *
- * @param {string} id
- */
-function objectTemplatesFor(id) {
-  switch (id) {
-    case 'api:events.Event':
-      return 'H, C = void, A = void';
-
-    case 'api:events.Rule':
-      return 'C = any, A = any';
-
-    case 'api:contentSettings.ContentSetting':
-      return 'T';
-
-    case 'api:types.ChromeSetting':
-      return 'T';
-  }
-}
-
-
-/**
- * Potentially replace a found 'any' with a better type.
- *
- * @param {string} id
- * @return {string|undefined}
- */
-function replaceAnyWith(id) {
-  switch (id) {
-    case 'api:events.Rule.conditions._':
-      return 'C';
-
-    case 'api:events.Rule.actions._':
-      return 'A';
-
-    case 'api:contentSettings.ContentSetting.get.return.setting':
-    case 'api:contentSettings.ContentSetting.get.callback.details.setting':
-    case 'api:types.ChromeSetting.set.details.setting':
-      return 'T';
-
-    case 'api:types.ChromeSetting.onChange.details.value':
-    case 'api:types.ChromeSetting.get.return.value':
-    case 'api:types.ChromeSetting.get.callback.details.value':
-    case 'api:types.ChromeSetting.set.details.value':
-      return 'T';
-  }
-}
-
-
-/**
- * Potentially do a complete type replacement or upgrade.
- *
- * @param {chromeTypes.TypeSpec} spec
- * @param {string} id
- */
-function typeOverride(spec, id) {
-  switch (id) {
-    case 'api:events.Event.addListener.callback':
-    case 'api:events.Event.removeListener.callback':
-    case 'api:events.Event.hasListener.callback':
-      return { $ref: 'H' };
-
-    case 'api:events.Event.addRules.rules._':
-    case 'api:events.Event.addRules.callback.rules._':
-    case 'api:events.Event.getRules.callback.rules._':
-      return { $ref: 'Rule', value: [ '', { $ref: 'C' }, { $ref: 'A' } ] };
-  }
 }
 
 
@@ -251,7 +201,7 @@ function renderObjectAsType(prop, id) {
 
   buf.end('}');
 
-  const templates = objectTemplatesFor(id);
+  const templates = overrideApi.objectTemplatesFor(id);
   const templatePart = templates ? `<${templates}>` : '';
 
   return `${mode} ${name}${templatePart} ${buf.render()}`;
@@ -330,19 +280,16 @@ function renderType(spec, id, ambig = false) {
   spec = spec || { type: 'void' };
 
   // Potentially completely override the spec. Used for template magic in Event.
-  const override = typeOverride(spec, id);
-  if (override) {
-    spec = {
-      description: spec.description,
-      deprecated: spec.deprecated,
-      optional: spec.optional,
-      ...override,
-    };
-  }
+  spec = overrideApi.typeOverride(spec, id) ?? spec;
 
   // This should probably never happen. We could instead return `void`.
   if (spec.nodoc) {
     throw new Error(`render nodoc type: ${JSON.stringify(spec)}`);
+  }
+
+  // This is like $ref, but seems to win.
+  if (spec.isInstanceOf) {
+    return spec.isInstanceOf;
   }
 
   /** @type {(s: string) => string} */
@@ -411,15 +358,7 @@ function renderType(spec, id, ambig = false) {
       `[name: string]: ${renderType(spec.additionalProperties, id)}` :
       '';
 
-    /** @type {{[id: string]: chromeTypes.TypeSpec}} */
-    let props = {};
-
-    if (id !== null) {
-      props = context.propertiesFor(spec, id);
-    } else {
-      // TODO: ignored for now
-      // throw new Error(`got inner object without id: ${JSON.stringify(spec)}`);
-    }
+    const props = context.propertiesFor(spec, id);
 
     // If this object only has additional properties (it's just a dict), then return early.
     if (!Object.keys(props).length) {
@@ -437,9 +376,6 @@ function renderType(spec, id, ambig = false) {
 
     for (const childId in props) {
       const prop = props[childId];
-      // if (filterNode(prop)) {
-      //   continue;
-      // }
   
       const commentBuffer = renderComment(prop, childId);
       if (!commentBuffer.isEmpty) {
@@ -461,8 +397,8 @@ function renderType(spec, id, ambig = false) {
   }
 
   if (spec.$ref) {
-    // This is a special-case: `api:storage.sync` and friends have properties that are combined
-    // with any refs. We treat this as a "choice".
+    // HACK: This is a special-case: `api:storage.sync` and friends have properties that are
+    // combined with a $ref instance. We treat this as a union (the only case in the codebase).
     if (spec.properties && Object.keys(spec.properties).length) {
       const { properties, ...rest } = spec;
       return `${renderType(rest, id)} & ${renderType({ properties, type: 'object' }, `${id}.!`)}`;
@@ -474,17 +410,19 @@ function renderType(spec, id, ambig = false) {
         throw new Error(`unexpected template type for $ref: ${JSON.stringify(spec.value)}`);
       }
 
-      const templates = /** @type {chromeTypes.TypeSpec[]} */ (spec.value.slice(1));
-
-      const inner = templates.map((spec, i) => {
-        const childId = `${id}.#${i}`;
-        return renderType(spec, childId);
-      });
-      if (inner.length) {
+      // HACK: We see ['randomString', { type } ] in the codebase, but occasionally give extra
+      // types in our rendering to demonstrate further template types.
+      if (spec.value.length > 1) {
+        const templates = /** @type {chromeTypes.TypeSpec[]} */ (spec.value.slice(1));
+        const inner = templates.map((spec, i) => {
+          const childId = `${id}.@${i}`;
+          return renderType(spec, childId);
+        });
         return `${spec.$ref}<${inner.join(', ')}>`;
       }
 
-      // TODO: this appears on StorageArea and friends (name without values)
+      // nb. The single variable name appears on instances of `api:storage.StorageArea`, but doesn't
+      // seem to mean anything. Ignore for now.
     }
 
     return spec.$ref;
@@ -557,11 +495,12 @@ function renderType(spec, id, ambig = false) {
       return 'ArrayBuffer';
 
     case 'any':
-      return replaceAnyWith(id) ?? 'any';
+      return overrideApi.replaceAnyWith(id) ?? 'any';
 
     case 'boolean':
     case 'string':
     case 'void':
+    case 'undefined':
       return spec.type;
   }
 
@@ -594,10 +533,12 @@ function renderComment(spec, id) {
     tags.push({name: 'deprecated', value});
   }
 
+  // This adds `@chrome-enum "NAME" description` to the comment.
+  // We don't have a great way to document these otherwise.
   if (spec.enum) {
     for (const e of spec.enum) {
       if (typeof e === 'object' && e.description) {
-        tags.push({name: 'chrome-enum', value: `\"${e.name}\" ${e.description}`});
+        tags.push({name: 'chrome-enum', value: `${JSON.stringify(e.name)} ${e.description}`});
       }
     }
   }

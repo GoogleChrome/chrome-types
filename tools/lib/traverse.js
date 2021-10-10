@@ -161,7 +161,14 @@ export class TraverseContext {
         throw new Error(`returns_async with too many params: ${JSON.stringify(spec.returns_async)}`);
       }
       // This can be undefined, which is fine: treated as void for the Promise type.
-      const singleReturnsAsyncParam = spec.returns_async.parameters?.[0];
+      let singleReturnsAsyncParam = spec.returns_async.parameters?.[0];
+
+      // HACK: An optional param here is included on the Promise too.
+      if (singleReturnsAsyncParam?.optional) {
+        singleReturnsAsyncParam = {
+          choices: [ singleReturnsAsyncParam, { type: 'undefined' } ],
+        };
+      }
 
       // Call ourselves again without `returns_async`, so we can use the `Promise` return type.
       // Replace the 0th result with a Promise.
