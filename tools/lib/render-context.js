@@ -376,7 +376,7 @@ export class RenderContext {
 
         const name = last(childId);
         const opt = prop.optional ? '?' : '';
-        buf.line(`${name}${opt}: ${this.renderType(prop, `${id}.${name}`)},`);
+        buf.line(`${name}${opt}: ${this.renderType(prop, childId)},`);
       }
 
       buf.end('}');
