@@ -428,6 +428,10 @@ export class RenderContext {
     if (spec.type === 'function' || (!spec.type && spec.parameters)) {
       const buf = new RenderBuffer();
 
+      if (spec.$ref) {
+        throw new Error(`got function which has '$ref' to other: ${JSON.stringify(spec)}`);
+      }
+
       // Extract a list of args and their childIds, using the traverse helper, which will filter
       // properties that are nodoc or similar.
       /** @type {{ param: chromeTypes.TypeSpec, id: string }[]} */

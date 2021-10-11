@@ -60,6 +60,7 @@ Options:
     // TODO: filter stuff
   }
 
+  earlyOverride(o.api);
   const renderContext = new RenderContext(renderOverride);
   const buf = renderContext.renderAll(Object.values(o.api));
   const out = buf.render(true);
@@ -67,7 +68,39 @@ Options:
   const preambleFile = new URL('../content/preamble.d.ts', import.meta.url);
   const preambleContent = fs.readFileSync(preambleFile);
 
-  process.stdout.write(preambleContent + `\n\n// Generated on ${new Date}\n\n\n` + out);
+  const note = `
+// Generated on ${new Date}
+// Built at ${o.definitionsRevision}${(o.version ? ` (${o.version.version})` : '')}
+`;
+
+  process.stdout.write(preambleContent + '\n' + note + '\n' + out);
+}
+
+
+/**
+ * @param {{[api: string]: chromeTypes.NamespaceSpec}} api
+ */
+function earlyOverride(api) {
+  // Fix contextMenus not having the right OnClickData type.
+  const existing = api['contextMenus'].types?.find(({id}) => id === 'OnClickData');
+  if (!existing) {
+    const clone = [
+      ...api['contextMenusInternal'].types ?? [],
+    ].map((x) => {
+      return { ...x, nodoc: false };
+    });
+    api['contextMenus'].types?.push(...clone);
+  }
+
+  // Fix contextMenus.onClicked incorrectly $ref-ing another function.
+  const onClickedEvent = api['contextMenus'].events?.find(({name}) => name === 'onClicked');
+  if (onClickedEvent && onClickedEvent.$ref) {
+    delete onClickedEvent.$ref;
+    onClickedEvent.parameters = [
+      { $ref: 'OnClickData', name: 'info' },
+      { $ref: 'tabs.Tab', name: 'tab' },
+    ];
+  }
 }
 
 
@@ -80,6 +113,18 @@ function buildRenderOverride(allNamespaceNames) {
 
   return {
     isVisible(spec, id) {
+      // Hide a number of internal APIs.
+      const parts = id.split('.');
+      if (['api:test', 'api:idltest'].includes(parts[0])) {
+        return false;
+      }
+      const invalid = parts.some((part) => {
+        return part.endsWith('Private') || part.endsWith('Internal');
+      })
+      if (invalid) {
+        return false;
+      }
+
       switch (id) {
         case 'api:declarativeContent.ShowAction':
           // This is incorrectly referenced even though it's marked nodoc.
@@ -116,6 +161,35 @@ function buildRenderOverride(allNamespaceNames) {
         case 'api:events.Event.addRules.callback.rules._':
         case 'api:events.Event.getRules.callback.rules._':
           return { $ref: 'Rule', value: ['', { $ref: 'C' }, { $ref: 'A' }] };
+      }
+
+      // Fix bad runtime.Port APIs in older Chrome versions.
+      if (spec.$ref === 'events.Event' && !spec.value) {
+        /** @type {chromeTypes.TypeSpec[]} */
+        const parameters = [];
+
+        /** @type {chromeTypes.TypeSpec} */
+        const functionType = { type: 'function', parameters };
+
+        /** @type {chromeTypes.TypeSpec} */
+        const update = { ...spec, value: ['', functionType] };
+
+        switch (id) {
+          case 'api:runtime.Port.onMessage':
+            parameters.push({ type: 'any', name: 'message' });
+            // fall-through
+
+          case 'api:runtime.Port.onDisconnect':
+            parameters.push({ $ref: 'Port', name: 'port' });
+            break;
+        }
+
+        return update;
+      }
+
+      // Fix bad contextMenusInternal references in older Chrome versions.
+      if (spec.$ref && spec.$ref.startsWith('contextMenusInternal.') && !id.startsWith('api:contextMenusInternal.')) {
+        spec.$ref = spec.$ref.replace(/^contextMenusInternal\./, 'contextMenus.');
       }
 
       // Fix isInstanceOf usages.

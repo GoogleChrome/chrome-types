@@ -155,6 +155,10 @@ export class TraverseContext {
         return;
       }
 
+      if (eprop.$ref) {
+        throw new Error(`event had $ref as part of function type: ${JSON.stringify(eprop)}`);
+      }
+
       /** @type {chromeTypes.TypeSpec} */
       const inner = {
         type: 'function',
