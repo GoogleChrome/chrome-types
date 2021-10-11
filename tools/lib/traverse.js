@@ -70,11 +70,37 @@ export class TraverseContext {
    * @param {(spec: chromeTypes.TypeSpec, id: string) => void} fn
    */
   forEach(source, parent, fn) {
-    const dict = flatten(source, parent);
-    for (const id in dict) {
-      const o = dict[id];
-      if (this.#filter(o, id)) {
-        fn(o, id);
+    if (!source) {
+      return;
+    }
+
+    if (Array.isArray(source)) {
+      for (const p of source) {
+        const cid = p.id ?? p.name;
+        if (cid === undefined) {
+          throw new Error(`bad property/param: ${JSON.stringify(p)} parent=${parent}`);
+        }
+
+        const childId = `${parent}.${cid}`;
+        if (this.#filter(p, childId)) {
+          fn(p, childId);
+        }
+      }
+      return;
+    }
+
+    // Otherwise, this is a dict. Confirm the dictionary has matching IDs, if any.
+    for (const name in source) {
+      const p = source[name];
+      const cid = p.id ?? p.name;
+
+      if (cid !== undefined && cid !== name) {
+        throw new Error(`bad property: parent dict ${name}, ${cid}`);
+      }
+
+      const childId = `${parent}.${name}`;
+      if (this.#filter(p, childId)) {
+        fn(p, childId);
       }
     }
   }
@@ -257,47 +283,4 @@ export class TraverseContext {
 
     return expansions;
   }
-}
-
-
-/**
- * Flatten an array or dictionary into a common dictionary of type instances, all with a nested ID
- * based on the passed parent ID. Supports an empty/undefined source.
- *
- * @param {{[name: string]: chromeTypes.TypeSpec} | chromeTypes.TypeSpec[] | undefined} source
- * @param {string} parent
- */
-export function flatten(source, parent) {
-  if (!source) {
-    return {};
-  }
-
-  /** @type {{[name: string]: chromeTypes.TypeSpec}} */
-  const dict = {};
-
-  // Convert an array to the dictionary form instead. Expect name/id to appear on every element.
-  if (Array.isArray(source)) {
-    for (const p of source) {
-      const cid = p.id ?? p.name;
-      if (cid === undefined) {
-        throw new Error(`bad property: ${cid} parent=${parent}`);
-      }
-      dict[`${parent}.${cid}`] = p;
-    }
-    return dict;
-  }
-
-  // Confirm the dictionary has matching IDs, if any.
-  for (const name in source) {
-    const p = source[name];
-    const cid = p.id ?? p.name;
-
-    if (cid !== undefined && cid !== name) {
-      throw new Error(`bad property: parent dict ${name}, ${cid}`);
-    }
-
-    dict[`${parent}.${name}`] = p;
-  }
-
-  return dict;
 }

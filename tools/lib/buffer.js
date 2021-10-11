@@ -34,9 +34,13 @@ export class RenderBuffer {
    * Appends another string or @see {RenderBuffer} to this buffer. This appends to the current line
    * and does not insert a new line.
    *
-   * @param {string|RenderBuffer} raw
+   * @param {string|RenderBuffer|null} raw
    */
   append(raw) {
+    if (!raw) {
+      return;
+    }
+
     if (raw instanceof RenderBuffer) {
       raw = raw.render();
     }
@@ -136,8 +140,13 @@ export class RenderBuffer {
 
   /**
    * Renders this buffer to a string.
+   *
+   * @param {boolean=} stripTrailingWhitespace
    */
-  render() {
+  render(stripTrailingWhitespace) {
+    if (stripTrailingWhitespace) {
+      return this.#lines.map((x) => x.trimRight()).join('\n');
+    }
     return this.#lines.join('\n');
   }
 
