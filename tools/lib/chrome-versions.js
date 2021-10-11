@@ -17,7 +17,7 @@
 
 /**
  * @fileoverview Fetches the revision for both the head revision of Chromium source, as well as
- * historic major releases.
+ * historic major releases. This relies on the `git` being installed.
  */
 
 
