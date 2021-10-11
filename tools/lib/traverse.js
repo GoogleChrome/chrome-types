@@ -153,6 +153,7 @@ export class TraverseContext {
   /**
    * @param {chromeTypes.TypeSpec} spec
    * @param {string} id
+   * @return {[chromeTypes.TypeSpec, ...chromeTypes.TypeSpec[]][]}
    */
   expandFunctionParams(spec, id) {
     const params = (spec.parameters ?? []).filter((spec, i) => {
@@ -160,16 +161,23 @@ export class TraverseContext {
       return this.#filter(spec, `${id}.${name}`);
     });
 
-    // This includes the return value in the 0th position.
-    /** @type {chromeTypes.TypeSpec[][]} */
+    // This always includes the return value in the 0th position.
+    /** @type {[chromeTypes.TypeSpec, ...chromeTypes.TypeSpec[]][]} */
     const expansions = [];
 
+    // If this is actually a Promise-supporting API, then we call ourselves again to support both
+    // callback and Promise-based versions.
     if (spec.returns_async) {
-      if ((spec.returns_async.parameters?.length ?? 0) > 1) {
+      const asyncParameters = spec.returns_async.parameters ?? [];
+      if (asyncParameters.length > 1) {
         throw new Error(`returns_async with too many params: ${JSON.stringify(spec.returns_async)}`);
       }
+      if (spec.returns) {
+        throw new Error(`returns_async with additional returns option: ${JSON.stringify(spec)}`);
+      }
+
       // This can be undefined, which is fine: treated as void for the Promise type.
-      let singleReturnsAsyncParam = spec.returns_async.parameters?.[0];
+      let singleReturnsAsyncParam = asyncParameters[0] ?? { type: 'void' };
 
       // HACK: An optional param here is included on the Promise too.
       if (singleReturnsAsyncParam?.optional) {
@@ -184,6 +192,9 @@ export class TraverseContext {
       const promisified = this.expandFunctionParams(clone, id);
 
       for (const out of promisified) {
+        if (out[0].type !== 'void') {
+          throw new Error(`can't promisify returns_async, got non-void ret: ${JSON.stringify(out)}`);
+        }
         out[0] = {
           $ref: 'Promise',
           value: [
@@ -194,7 +205,7 @@ export class TraverseContext {
       }
       expansions.push(...promisified);
 
-      // Push this as a callback.
+      // Push this as a callback and continue execution so we get all options.
       params.push(spec.returns_async);
     }
 
@@ -203,9 +214,9 @@ export class TraverseContext {
     /** @type {number[]} */
     const optionalPositionsLeft = [];
 
-    // Working backwards, find all optional positions found at a lower index than required ones. For
-    // example, for (req, opt, req, opt), the result array will be [1] as the first required argument
-    // is at 2.
+    // Working backwards, find all optional positions found at a lower index than required ones.
+    // For example, in (req, opt, req, opt), the result array will be [1] as the first required
+    // argument is at 2.
     for (let i = params.length - 1; i >= 0; --i) {
       const p = params[i];
       if (!p.optional) {
@@ -236,7 +247,7 @@ export class TraverseContext {
         }
       }
 
-      // This has no return type (void), so push undefined first.
+      // Ensure that there's a return type, or fall back to `void`.
       const result = /** @type {chromeTypes.TypeSpec[]} */ (work.filter((x) => x !== null));
       expansions.push([
         spec.returns ?? { type: 'void' },
@@ -246,11 +257,13 @@ export class TraverseContext {
 
     return expansions;
   }
-
 }
 
 
 /**
+ * Flatten an array or dictionary into a common dictionary of type instances, all with a nested ID
+ * based on the passed parent ID. Supports an empty/undefined source.
+ *
  * @param {{[name: string]: chromeTypes.TypeSpec} | chromeTypes.TypeSpec[] | undefined} source
  * @param {string} parent
  */
@@ -262,7 +275,7 @@ export function flatten(source, parent) {
   /** @type {{[name: string]: chromeTypes.TypeSpec}} */
   const dict = {};
 
-  // Convert an array to the dictionary form instead.
+  // Convert an array to the dictionary form instead. Expect name/id to appear on every element.
   if (Array.isArray(source)) {
     for (const p of source) {
       const cid = p.id ?? p.name;
@@ -271,17 +284,19 @@ export function flatten(source, parent) {
       }
       dict[`${parent}.${cid}`] = p;
     }
-  } else {
-    for (const name in source) {
-      const p = source[name];
-      const cid = p.id ?? p.name;
-  
-      if (cid !== undefined && cid !== name) {
-        throw new Error(`bad property: parent dict ${name}, ${cid}`);
-      }
-  
-      dict[`${parent}.${name}`] = p;
+    return dict;
+  }
+
+  // Confirm the dictionary has matching IDs, if any.
+  for (const name in source) {
+    const p = source[name];
+    const cid = p.id ?? p.name;
+
+    if (cid !== undefined && cid !== name) {
+      throw new Error(`bad property: parent dict ${name}, ${cid}`);
     }
+
+    dict[`${parent}.${name}`] = p;
   }
 
   return dict;
