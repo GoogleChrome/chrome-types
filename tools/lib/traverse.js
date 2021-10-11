@@ -20,6 +20,7 @@ import * as chromeTypes from '../../types/chrome.js';
 
 /**
  * @param {string} id
+ * @return {string}
  */
 export function last(id) {
   const index = id.lastIndexOf('.');
@@ -27,6 +28,19 @@ export function last(id) {
     return id.substr(index + 1);
   }
   return id;
+}
+
+
+/**
+ * @param {string} id
+ * @return {string}
+ */
+export function parentId(id) {
+  const dot = id.lastIndexOf('.');
+  if (dot === -1) {
+    return '';
+  }
+  return id.substr(0, dot);
 }
 
 

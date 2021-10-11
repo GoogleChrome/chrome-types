@@ -24,6 +24,7 @@ import mri from 'mri';
 import { buildNamespaceAwareMarkdownRewrite } from './lib/comment.js';
 import { namespaceNameFromId } from './lib/traverse.js';
 import { RenderContext } from './lib/render-context.js';
+import { FeatureQuery } from './lib/feature-query.js';
 
 
 async function run() {
@@ -56,7 +57,6 @@ Options:
   const o = JSON.parse(await getStdin());
 
   const allNamespaceNames = Object.keys(o.api);
-  const renderOverride = buildRenderOverride(allNamespaceNames);
 
   /** @type {string[]} */
   const renderParts = [];
@@ -85,18 +85,32 @@ Options:
   const preambleFile = new URL('../content/preamble.d.ts', import.meta.url);
   renderParts.push(fs.readFileSync(preambleFile, 'utf-8'));
 
-  // If we're requesting MV3+ only, then filter out Platform Apps APIs.
-  if (!argv.all) {
-    const originalIsVisible = renderOverride.isVisible.bind(renderOverride);
-    renderOverride.isVisible = (spec, id) => {
-      // TODO: filter all not in MV3+, not just a demo
-      const namespaceName = namespaceNameFromId(id);
-      if (namespaceName === 'usb') {
-        return false;
+  /** @type {overrideTypes.RenderOverride} */
+  let renderOverride;
+
+  if (argv.all) {
+    // We include all APIs, MV2 and MV3 etc, to render on the site.
+    renderOverride = new RenderOverride(allNamespaceNames);
+
+  } else {
+    const fq = new FeatureQuery(o.feature);
+
+    // If we're requesting MV3+ only, then filter out Platform Apps APIs.
+    renderOverride = new class extends RenderOverride {
+
+      /**
+       * @param {chromeTypes.TypeSpec} spec
+       * @param {string} id
+       */
+      isVisible(spec, id) {
+        if (!fq.availableInExtensions(id)) {
+          console.warn('skipped', id);
+          return false;
+        }
+        return super.isVisible(spec, id);
       }
 
-      return originalIsVisible(spec, id);
-    };
+    }(allNamespaceNames);
 
     const extraMV3File = new URL('../content/extra-mv3.d.ts', import.meta.url);
     renderParts.push(fs.readFileSync(extraMV3File, 'utf-8'));
@@ -139,141 +153,167 @@ function earlyOverride(api) {
 
 
 /**
- * @param {Iterable<string>} allNamespaceNames
- * @return {overrideTypes.RenderOverride}
+ * @implements {overrideTypes.RenderOverride}
  */
-function buildRenderOverride(allNamespaceNames) {
-  const commentRewriter = buildNamespaceAwareMarkdownRewrite(allNamespaceNames);
+class RenderOverride {
+  #commentRewriter;
 
-  return {
-    isVisible(spec, id) {
-      // Hide a number of internal APIs.
-      const parts = id.split('.');
-      if (['api:test', 'api:idltest'].includes(parts[0])) {
-        return false;
-      }
-      const invalid = parts.some((part) => {
-        return part.endsWith('Private') || part.endsWith('Internal');
-      })
-      if (invalid) {
-        return false;
-      }
+  /**
+   * @param {Iterable<string>} allNamespaceNames
+   */
+  constructor(allNamespaceNames) {
+    this.#commentRewriter = buildNamespaceAwareMarkdownRewrite(allNamespaceNames);
+  }
+
+  /**
+   * @param {chromeTypes.TypeSpec} spec
+   * @param {string} id
+   */
+  isVisible(spec, id) {
+    // Hide a number of internal APIs.
+    const parts = id.split('.');
+    if (['api:test', 'api:idltest'].includes(parts[0])) {
+      return false;
+    }
+    const invalid = parts.some((part) => {
+      return part.endsWith('Private') || part.endsWith('Internal');
+    })
+    if (invalid) {
+      return false;
+    }
+
+    switch (id) {
+      case 'api:notifications.NotificationBitmap':
+        // In old versions of Chrome, this is incorrectly marked nodoc.
+        return true;
+
+      case 'api:declarativeContent.ShowAction':
+        // This is incorrectly referenced even though it's marked nodoc.
+        return true;
+    }
+    return !spec.nodoc;
+  }
+
+  /**
+   * @param {string} id
+   */
+  objectTemplatesFor(id) {
+    switch (id) {
+      case 'api:events.Event':
+        return 'H, C = void, A = void';
+
+      case 'api:events.Rule':
+        return 'C = any, A = any';
+
+      case 'api:contentSettings.ContentSetting':
+        return 'T';
+
+      case 'api:types.ChromeSetting':
+        return 'T';
+    }
+  }
+
+  /**
+   * @param {chromeTypes.TypeSpec} spec
+   * @param {string} id
+   */
+  typeOverride(spec, id) {
+    // Replace callback types to do with Event.
+    switch (id) {
+      case 'api:events.Event.addListener.callback':
+      case 'api:events.Event.removeListener.callback':
+      case 'api:events.Event.hasListener.callback':
+        return { $ref: 'H' };
+
+      case 'api:events.Event.addRules.rules._':
+      case 'api:events.Event.addRules.callback.rules._':
+      case 'api:events.Event.getRules.callback.rules._':
+        return { $ref: 'Rule', value: ['', { $ref: 'C' }, { $ref: 'A' }] };
+    }
+
+    // Fix bad runtime.Port APIs in older Chrome versions.
+    if (spec.$ref === 'events.Event' && !spec.value) {
+      /** @type {chromeTypes.TypeSpec[]} */
+      const parameters = [];
+
+      /** @type {chromeTypes.TypeSpec} */
+      const functionType = { type: 'function', parameters };
+
+      /** @type {chromeTypes.TypeSpec} */
+      const update = { ...spec, value: ['', functionType] };
 
       switch (id) {
-        case 'api:notifications.NotificationBitmap':
-          // In old versions of Chrome, this is incorrectly marked nodoc.
-          return true;
+        case 'api:runtime.Port.onMessage':
+          parameters.push({ type: 'any', name: 'message' });
+          // fall-through
 
-        case 'api:declarativeContent.ShowAction':
-          // This is incorrectly referenced even though it's marked nodoc.
-          return true;
+        case 'api:runtime.Port.onDisconnect':
+          parameters.push({ $ref: 'Port', name: 'port' });
+          break;
       }
-      return !spec.nodoc;
-    },
 
-    objectTemplatesFor(id) {
+      return update;
+    }
+
+    // Fix bad contextMenusInternal references in older Chrome versions.
+    if (spec.$ref && spec.$ref.startsWith('contextMenusInternal.') && !id.startsWith('api:contextMenusInternal.')) {
+      spec.$ref = spec.$ref.replace(/^contextMenusInternal\./, 'contextMenus.');
+    }
+
+    // Fix isInstanceOf usages.
+    switch (spec.isInstanceOf) {
+      case 'Promise':
+        return { $ref: 'Promise', value: ['', { type: 'any' }] };
+
+      case 'global':
+        return { $ref: 'Window' };
+    }
+
+    // Upgrade ambiguous "any" to better template types as needed.
+    if (spec.type === 'any') {
       switch (id) {
-        case 'api:events.Event':
-          return 'H, C = void, A = void';
+        case 'api:events.Rule.conditions._':
+          return { $ref: 'C' };
 
-        case 'api:events.Rule':
-          return 'C = any, A = any';
+        case 'api:events.Rule.actions._':
+          return { $ref: 'A' };
 
-        case 'api:contentSettings.ContentSetting':
-          return 'T';
+        case 'api:contentSettings.ContentSetting.get.return.setting':
+        case 'api:contentSettings.ContentSetting.get.callback.details.setting':
+        case 'api:types.ChromeSetting.set.details.setting':
+          return { $ref: 'T' };
 
-        case 'api:types.ChromeSetting':
-          return 'T';
+        case 'api:types.ChromeSetting.onChange.details.value':
+        case 'api:types.ChromeSetting.get.return.value':
+        case 'api:types.ChromeSetting.get.callback.details.value':
+        case 'api:types.ChromeSetting.set.details.value':
+          return { $ref: 'T' };
       }
-    },
+    }
+  }
 
-    typeOverride(spec, id) {
-      // Replace callback types to do with Event.
-      switch (id) {
-        case 'api:events.Event.addListener.callback':
-        case 'api:events.Event.removeListener.callback':
-        case 'api:events.Event.hasListener.callback':
-          return { $ref: 'H' };
+  /**
+   * @param {chromeTypes.TypeSpec} spec
+   * @param {string} id
+   */
+  tagsFor(spec, id) {
+    // TODO: missing for now
+    if (1) {
+      return [];
+    }
+  }
 
-        case 'api:events.Event.addRules.rules._':
-        case 'api:events.Event.addRules.callback.rules._':
-        case 'api:events.Event.getRules.callback.rules._':
-          return { $ref: 'Rule', value: ['', { $ref: 'C' }, { $ref: 'A' }] };
-      }
-
-      // Fix bad runtime.Port APIs in older Chrome versions.
-      if (spec.$ref === 'events.Event' && !spec.value) {
-        /** @type {chromeTypes.TypeSpec[]} */
-        const parameters = [];
-
-        /** @type {chromeTypes.TypeSpec} */
-        const functionType = { type: 'function', parameters };
-
-        /** @type {chromeTypes.TypeSpec} */
-        const update = { ...spec, value: ['', functionType] };
-
-        switch (id) {
-          case 'api:runtime.Port.onMessage':
-            parameters.push({ type: 'any', name: 'message' });
-            // fall-through
-
-          case 'api:runtime.Port.onDisconnect':
-            parameters.push({ $ref: 'Port', name: 'port' });
-            break;
-        }
-
-        return update;
-      }
-
-      // Fix bad contextMenusInternal references in older Chrome versions.
-      if (spec.$ref && spec.$ref.startsWith('contextMenusInternal.') && !id.startsWith('api:contextMenusInternal.')) {
-        spec.$ref = spec.$ref.replace(/^contextMenusInternal\./, 'contextMenus.');
-      }
-
-      // Fix isInstanceOf usages.
-      switch (spec.isInstanceOf) {
-        case 'Promise':
-          return { $ref: 'Promise', value: ['', { type: 'any' }] };
-
-        case 'global':
-          return { $ref: 'Window' };
-      }
-
-      // Upgrade ambiguous "any" to better template types as needed.
-      if (spec.type === 'any') {
-        switch (id) {
-          case 'api:events.Rule.conditions._':
-            return { $ref: 'C' };
-
-          case 'api:events.Rule.actions._':
-            return { $ref: 'A' };
-
-          case 'api:contentSettings.ContentSetting.get.return.setting':
-          case 'api:contentSettings.ContentSetting.get.callback.details.setting':
-          case 'api:types.ChromeSetting.set.details.setting':
-            return { $ref: 'T' };
-
-          case 'api:types.ChromeSetting.onChange.details.value':
-          case 'api:types.ChromeSetting.get.return.value':
-          case 'api:types.ChromeSetting.get.callback.details.value':
-          case 'api:types.ChromeSetting.set.details.value':
-            return { $ref: 'T' };
-        }
-      }
-    },
-
-    tagsFor(spec, id) {
-      // TODO: missing for now
-      if (1) {
-        return [];
-      }
-    },
-
-    rewriteComment(s, id) {
-      const namespace = namespaceNameFromId(id);
-      return commentRewriter(namespace, s);
-    },
-  };
+  /**
+   * @param {string} s
+   * @param {string} id
+   */
+  rewriteComment(s, id) {
+    const namespace = namespaceNameFromId(id);
+    const update = this.#commentRewriter(namespace, s);
+    if (update !== s) {
+      return update;
+    }
+  }
 }
 
 
