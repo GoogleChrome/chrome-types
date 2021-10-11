@@ -127,6 +127,10 @@ function buildRenderOverride(allNamespaceNames) {
       }
 
       switch (id) {
+        case 'api:notifications.NotificationBitmap':
+          // In old versions of Chrome, this is incorrectly marked nodoc.
+          return true;
+
         case 'api:declarativeContent.ShowAction':
           // This is incorrectly referenced even though it's marked nodoc.
           return true;

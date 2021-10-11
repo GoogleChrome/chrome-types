@@ -60,9 +60,8 @@ export async function fetchAllTo(targetPath, chromePaths, revision) {
     });
     if (isSatisfied) {
       return null;  // we'll already have something for this
-    } else {
-      return fetchTo(targetPath, chromePath, revision);
     }
+    return fetchTo(targetPath, chromePath, revision);
   }));
 }
 
@@ -80,9 +79,12 @@ export async function fetchAllTo(targetPath, chromePaths, revision) {
 export async function fetchTo(targetPath, chromePath, revision) {
   const url = urlFor(revision, chromePath);
 
-  // TODO: older versions of Chrome might be missing random things
   const r = await fetch(url);
   if (!r.ok) {
+    // HACK: Old platform_apps folder is missing. Skip for now.
+    if (r.status === 400 && chromePath === 'chrome/common/apps/platform_apps/api') {
+      return [];
+    }
     throw new Error(`could not fetch URL from Chromium: ${url}, ${r.statusText} (${r.status})`);
   }
 
