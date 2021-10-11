@@ -68,9 +68,10 @@ Options:
   const preambleFile = new URL('../content/preamble.d.ts', import.meta.url);
   const preambleContent = fs.readFileSync(preambleFile);
 
+  const versionSuffix = o.version ? ` (${o.version.version})` : '';
   const note = `
 // Generated on ${new Date}
-// Built at ${o.definitionsRevision}${(o.version ? ` (${o.version.version})` : '')}
+// Built at ${o.definitionsRevision}${versionSuffix}
 `;
 
   process.stdout.write(preambleContent + '\n' + note + '\n' + out);
