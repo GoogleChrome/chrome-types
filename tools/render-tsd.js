@@ -362,6 +362,9 @@ class RenderOverride {
     /** @type {Set<chromeTypes.Platform>} */
     const platforms = new Set();
 
+    /** @type {boolean} */
+    let isOnlyPlatformApps = false;
+
     // Actually loop over all features.
     // Note that this generates an OR: e.g., accessibilityFeatures requires _either_
     // "permission:accessibilityFeatures.read" OR "permission:accessibilityFeatures.write", and we
@@ -386,6 +389,10 @@ class RenderOverride {
       minManifestVersion = Math.max(f.min_manifest_version ?? 0, minManifestVersion);
 
       (f.platforms ?? []).forEach((platform) => platforms.add(platform));
+
+      if (f.extension_types && !f.extension_types.includes('extension') && f.extension_types.includes('platform_app')) {
+        isOnlyPlatformApps = true;
+      }
     });
 
     bestChannel = bestChannel ?? 'stable';
@@ -397,6 +404,10 @@ class RenderOverride {
     } else {
       tags.push({ name: 'chrome-channel', value: bestChannel });
       tags.unshift({ name: 'alpha' });
+    }
+
+    if (isOnlyPlatformApps) {
+      tags.push({ name: 'chrome-platform-apps' });
     }
 
     if (disallowForServiceWorkers) {

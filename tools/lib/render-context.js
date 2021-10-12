@@ -390,7 +390,7 @@ export class RenderContext {
 
         const s = [
           this.renderType(rest, id),
-          this.renderType({ properties, type: 'object' }, `${id}.!`),
+          this.renderType({ properties, type: 'object' }, id),
         ];
         return s.join(' & ')
       }
