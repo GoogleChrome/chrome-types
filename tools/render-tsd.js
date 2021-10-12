@@ -85,36 +85,26 @@ Options:
   const preambleFile = new URL('../content/preamble.d.ts', import.meta.url);
   renderParts.push(fs.readFileSync(preambleFile, 'utf-8'));
 
-  /** @type {overrideTypes.RenderOverride} */
-  let renderOverride;
+  /** @type {FeatureQuery} */
+  let fq;
 
   if (argv.all) {
     // We include all APIs, MV2 and MV3 etc, to render on the site.
-    renderOverride = new RenderOverride(allNamespaceNames);
+    fq = new FeatureQuery(o.feature);
 
   } else {
-    const fq = new FeatureQuery(o.feature);
-
-    // If we're requesting MV3+ only, then filter out Platform Apps APIs.
-    renderOverride = new class extends RenderOverride {
-
-      /**
-       * @param {chromeTypes.TypeSpec} spec
-       * @param {string} id
-       */
-      isVisible(spec, id) {
-        if (!fq.availableInExtensions(id)) {
-          console.warn('skipped', id);
-          return false;
-        }
-        return super.isVisible(spec, id);
-      }
-
-    }(allNamespaceNames);
+    // Filter to only extension APIs.
+    /** @type {(f: chromeTypes.FeatureSpec) => boolean} */
+    const extraFilter = (f) => {
+      return !f.extension_types || f.extension_types.includes('extension');
+    };
+    fq = new FeatureQuery(o.feature, extraFilter);
 
     const extraMV3File = new URL('../content/extra-mv3.d.ts', import.meta.url);
     renderParts.push(fs.readFileSync(extraMV3File, 'utf-8'));
   }
+
+  const renderOverride = new RenderOverride(allNamespaceNames, fq);
 
   earlyOverride(o.api);
   const renderContext = new RenderContext(renderOverride);
@@ -157,12 +147,15 @@ function earlyOverride(api) {
  */
 class RenderOverride {
   #commentRewriter;
+  #fq;
 
   /**
    * @param {Iterable<string>} allNamespaceNames
+   * @param {FeatureQuery} fq
    */
-  constructor(allNamespaceNames) {
+  constructor(allNamespaceNames, fq) {
     this.#commentRewriter = buildNamespaceAwareMarkdownRewrite(allNamespaceNames);
+    this.#fq = fq;
   }
 
   /**
@@ -179,6 +172,11 @@ class RenderOverride {
       return part.endsWith('Private') || part.endsWith('Internal');
     })
     if (invalid) {
+      return false;
+    }
+
+    if (!this.#fq.isAvailable(id)) {
+      console.warn('skipping', id);
       return false;
     }
 

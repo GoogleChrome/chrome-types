@@ -24,10 +24,14 @@ export class FeatureQuery {
 
   /**
    * @param {{[name: string]: chromeTypes.FeatureSpec|chromeTypes.FeatureSpec[]}} feature
+   * @param {(f: chromeTypes.FeatureSpec) => boolean} extraFilter
    */
-  constructor(feature) {
-    for (const raw of Object.values(feature)) {
-      const all = [raw].flat();
+  constructor(feature, extraFilter = () => true) {
+    /** @type {{[name: string]: chromeTypes.FeatureSpec[]}} */
+    const localFeature = {};
+
+    for (const [name, raw] of Object.entries(feature)) {
+      let all = [raw].flat();
       all.forEach((f) => {
         // This rewrites historic names for "allowlist" and "blocklist", which appear in historic
         // versions of the Chrome source code.
@@ -42,9 +46,15 @@ export class FeatureQuery {
           f[update] = prev;
         }
       });
+
+      all = all.filter((f) => {
+        return basicFilter(f) && extraFilter(f);
+      });
+
+      localFeature[name] = all;
     }
 
-    this.#feature = feature;
+    this.#feature = localFeature;
   }
 
   /**
@@ -52,7 +62,7 @@ export class FeatureQuery {
    * @return {chromeTypes.FeatureSpec[]}
    */
   #flatten = (id) => {
-    const q = [this.#feature[id] ?? {}].flat().filter(basicFilter);
+    const q = this.#feature[id] ?? [{}];
 
     const parent = parentId(id);
     if (!parent) {
@@ -117,10 +127,8 @@ export class FeatureQuery {
    * @param {string} id
    * @return {boolean}
    */
-  availableInExtensions(id) {
-    return this.someFeature(id, (f) => {
-      return !f.extension_types || f.extension_types.includes('extension');
-    });
+  isAvailable(id) {
+    return this.someFeature(id, () => true);
   }
 }
 
@@ -140,12 +148,12 @@ function basicFilter(f) {
     return false;
   }
 
-  // TODO(samthor): This disallows the Platform Apps APIs "virtualKeyboard" and "networking.onc",
-  // which are still documented on the site. Both APIs document their kiosk-only state in their
-  // description so we don't have to make further noise about them.
   // Only allow regular, not "kiosk".
   if (f.session_types?.length && !f.session_types.includes('regular')) {
-    return false;
+    // HACK: we don't disallow this for now as it only lets through the Platform Apps APIs:
+    //   * 'virtualKeyboard'
+    //   * 'networking.onc'
+    // ...both which are deprecated, but might still be used.
   }
 
   // Only allow matching all URLs.
