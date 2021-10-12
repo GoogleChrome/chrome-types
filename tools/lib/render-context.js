@@ -23,7 +23,6 @@ import { last, TraverseContext } from './traverse.js';
 
 
 export class RenderContext {
-
   #override;
   #t;
 
@@ -518,18 +517,20 @@ export class RenderContext {
 
     this.#t.forEach(spec.parameters, id, (param, childId) => {
       let value = last(childId);
-      if (param.description) {
-        value += ` ${param.description}`;
+      const description = sanitizeCommentData(param.description);
+      if (description) {
+        value += ` ${description}`;
       }
       tags.push({ name: 'param', value });
     });
 
     if (spec.returns?.description) {
-      tags.push({ name: 'returns', value: spec.returns.description });
+      const value = sanitizeCommentData(spec.returns.description);
+      tags.push({ name: 'returns', value });
     }
 
-    if (spec.deprecated !== undefined) {
-      const value = spec.deprecated ?? '';
+    if (spec.deprecated) {
+      const value = sanitizeCommentData(spec.deprecated ?? '');
       tags.push({ name: 'deprecated', value });
     }
 
@@ -538,15 +539,13 @@ export class RenderContext {
     if (spec.enum) {
       for (const e of spec.enum) {
         if (typeof e === 'object' && e.description) {
-          tags.push({ name: 'chrome-enum', value: `${JSON.stringify(e.name)} ${e.description}` });
+          const value = `${JSON.stringify(e.name)} ${sanitizeCommentData(e.description)}`;
+          tags.push({ name: 'chrome-enum', value });
         }
       }
     }
 
-    let description = spec.description || '';
-    if (description.toLocaleLowerCase() === 'none') {
-      description = '';
-    }
+    let description = sanitizeCommentData(spec.description);
 
     // Rewrite the description.
     if (description) {
@@ -556,6 +555,7 @@ export class RenderContext {
     // Rewrite any tags with values.
     for (const tag of tags) {
       if (tag.value) {
+        // TODO: This can generate multi-line tags.
         tag.value = this.#override.rewriteComment(tag.value, id, tag.name) ?? tag.value;
       }
     }
@@ -573,3 +573,18 @@ export class RenderContext {
   }
 }
 
+
+/**
+ * Removes instances of "NONE" or "TODO" from the comment data.
+ *
+ * @param {string|undefined} raw
+ */
+function sanitizeCommentData(raw) {
+  if (raw) {
+    const checkLower = raw.toLocaleLowerCase();
+    if (checkLower === 'none' || checkLower === 'todo') {
+      return undefined;
+    }
+  }
+  return raw;
+}

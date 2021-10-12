@@ -22,9 +22,10 @@ import * as overrideTypes from '../types/override.js';
 import * as fs from 'fs';
 import mri from 'mri';
 import { buildNamespaceAwareMarkdownRewrite } from './lib/comment.js';
-import { namespaceNameFromId } from './lib/traverse.js';
+import { namespaceNameFromId, parentId } from './lib/traverse.js';
 import { RenderContext } from './lib/render-context.js';
 import { FeatureQuery } from './lib/feature-query.js';
+import { mostReleasedChannel } from './lib/channel.js';
 
 
 async function run() {
@@ -90,15 +91,10 @@ Options:
 
   if (argv.all) {
     // We include all APIs, MV2 and MV3 etc, to render on the site.
-    fq = new FeatureQuery(o.feature);
+    fq = new FeatureQueryAll(o.feature);
 
   } else {
-    // Filter to only extension APIs.
-    /** @type {(f: chromeTypes.FeatureSpec) => boolean} */
-    const extraFilter = (f) => {
-      return !f.extension_types || f.extension_types.includes('extension');
-    };
-    fq = new FeatureQuery(o.feature, extraFilter);
+    fq = new FeatureQueryModern(o.feature);
 
     const extraMV3File = new URL('../content/extra-mv3.d.ts', import.meta.url);
     renderParts.push(fs.readFileSync(extraMV3File, 'utf-8'));
@@ -120,7 +116,7 @@ Options:
  */
 function earlyOverride(api) {
   // Fix contextMenus not having the right OnClickData type.
-  const existing = api['contextMenus'].types?.find(({id}) => id === 'OnClickData');
+  const existing = api['contextMenus'].types?.find(({ id }) => id === 'OnClickData');
   if (!existing) {
     const clone = [
       ...api['contextMenusInternal'].types ?? [],
@@ -131,13 +127,64 @@ function earlyOverride(api) {
   }
 
   // Fix contextMenus.onClicked incorrectly $ref-ing another function.
-  const onClickedEvent = api['contextMenus'].events?.find(({name}) => name === 'onClicked');
+  const onClickedEvent = api['contextMenus'].events?.find(({ name }) => name === 'onClicked');
   if (onClickedEvent && onClickedEvent.$ref) {
     delete onClickedEvent.$ref;
     onClickedEvent.parameters = [
       { $ref: 'OnClickData', name: 'info' },
       { $ref: 'tabs.Tab', name: 'tab' },
     ];
+  }
+}
+
+
+class FeatureQueryModern extends FeatureQuery {
+
+  /**
+   * @param {chromeTypes.FeatureSpec} f
+   * @return {boolean}
+   */
+  filter(f) {
+    // Don't show anything that maxes out before MV3.
+    if (f.max_manifest_version && f.max_manifest_version < 3) {
+      return false;
+    }
+
+    // Remove non-extension APIs.
+    if (f.extension_types && !f.extension_types.includes('extension')) {
+      return false;
+    }
+
+    return super.filter(f);
+  }
+
+}
+
+
+class FeatureQueryAll extends FeatureQuery {
+
+  /**
+   * @param {chromeTypes.FeatureSpec[]} q
+   * @return {chromeTypes.FeatureSpec | null | void}
+   */
+  mergeComplexFeature(q) {
+    const s = super.mergeComplexFeature(q);
+    if (s !== undefined) {
+      return s;
+    }
+
+    // Filter (potentially) by channel. Choose the most released channel (e.g., 'stable' over 'beta').
+    const bestChannel = q.reduce((channel, spec) => mostReleasedChannel(channel, spec.channel), /** @type {chromeTypes.Channel | undefined} */(undefined));
+    const bestChannelFilter = q.filter(({ channel }) => channel === bestChannel);
+    if (bestChannelFilter.length === 1) {
+      return bestChannelFilter[0];
+    }
+
+    // Filter by extension (prefer).
+    const extensionFilter = q.filter(({ extension_types }) => extension_types?.includes('extension'));
+    if (extensionFilter.length === 1) {
+      return extensionFilter[0];
+    }
   }
 }
 
@@ -163,7 +210,7 @@ class RenderOverride {
    * @param {string} id
    */
   isVisible(spec, id) {
-    // Hide a number of internal APIs.
+    // Hide a number of internal APIs that aren't specifically disallowed in the feature files.
     const parts = id.split('.');
     if (['api:test', 'api:idltest'].includes(parts[0])) {
       return false;
@@ -175,8 +222,8 @@ class RenderOverride {
       return false;
     }
 
+    // If this is just a disallowed feature (e.g., it has a specific allowlist) then skip it.
     if (!this.#fq.isAvailable(id)) {
-      console.warn('skipping', id);
       return false;
     }
 
@@ -243,7 +290,7 @@ class RenderOverride {
       switch (id) {
         case 'api:runtime.Port.onMessage':
           parameters.push({ type: 'any', name: 'message' });
-          // fall-through
+        // fall-through
 
         case 'api:runtime.Port.onDisconnect':
           parameters.push({ $ref: 'Port', name: 'port' });
@@ -291,14 +338,120 @@ class RenderOverride {
   }
 
   /**
+   * Generates all extra tags for this node, which may be filtered if they match the tags of our
+   * parent. These may include duplicate tags.
+   *
+   * @param {string} id
+   */
+  completeTagsFor(id) {
+    /** @type {{name: string, value?: string, keep?: true}[]} */
+    const tags = [];
+
+    /** @type {chromeTypes.Channel | undefined} */
+    let bestChannel = undefined;
+
+    /** @type {boolean} */
+    let disallowForServiceWorkers = false;
+
+    /** @type {number} */
+    let maxManifestVersion = Infinity;
+
+    /** @type {number} */
+    let minManifestVersion = 0;
+
+    /** @type {Set<chromeTypes.Platform>} */
+    const platforms = new Set();
+
+    // Actually loop over all features.
+    // Note that this generates an OR: e.g., accessibilityFeatures requires _either_
+    // "permission:accessibilityFeatures.read" OR "permission:accessibilityFeatures.write", and we
+    // just include both semi-ambiguously (the site never says OR or AND).
+    this.#fq.checkFeature(id, (f, otherId) => {
+      if (otherId.startsWith('permission:')) {
+        const value = otherId.substr('permission:'.length);
+        tags.push({ name: 'chrome-permission', value });
+      }
+
+      if (otherId.startsWith('manifest:')) {
+        const value = otherId.substr('manifest:'.length);
+        tags.push({ name: 'chrome-manifest', value });
+      }
+
+      bestChannel = mostReleasedChannel(bestChannel, f.channel);
+      disallowForServiceWorkers = disallowForServiceWorkers || (f.disallow_for_service_workers ?? false);
+
+      // nb. In practice we see only min or max. (min for MV3+, max for MV2)
+      // TODO: If there is later a MV4, this will need to be updated.
+      maxManifestVersion = Math.min(f.max_manifest_version ?? Infinity, maxManifestVersion);
+      minManifestVersion = Math.max(f.min_manifest_version ?? 0, minManifestVersion);
+
+      (f.platforms ?? []).forEach((platform) => platforms.add(platform));
+    });
+
+    bestChannel = bestChannel ?? 'stable';
+    if (bestChannel === 'stable') {
+      // Ignore, implied
+    } else if (bestChannel === 'beta') {
+      tags.push({ name: 'chrome-channel', value: 'beta' });
+      tags.unshift({ name: 'beta' });
+    } else {
+      tags.push({ name: 'chrome-channel', value: bestChannel });
+      tags.unshift({ name: 'alpha' });
+    }
+
+    if (disallowForServiceWorkers) {
+      tags.push({ name: 'chrome-disallow-service-workers' });
+    }
+
+    if (maxManifestVersion !== Infinity) {
+      const value = `MV${maxManifestVersion}`;
+      tags.push({ name: 'chrome-max-manifest', value });
+    }
+    if (minManifestVersion !== 0) {
+      const value = `MV${minManifestVersion}`;
+      tags.push({ name: 'chrome-min-manifest', value });
+    }
+
+    // This can surface a few values but we generally only end up showing "chromeos".
+    platforms.forEach((value) => {
+      tags.push({ name: 'chrome-platform', value });
+    });
+
+    // Ensure we only return unique tags.
+    /** @type {Set<string>} */
+    const uniqueSet = new Set();
+    return tags.filter((tag) => {
+      const key = `${tag.name}/${tag.value ?? ''}/${tag.keep ?? 'false'}`;
+      if (uniqueSet.has(key)) {
+        return false;
+      }
+      uniqueSet.add(key);
+      return true;
+    });
+  }
+
+  /**
    * @param {chromeTypes.TypeSpec} spec
    * @param {string} id
    */
   tagsFor(spec, id) {
-    // TODO: missing for now
-    if (1) {
-      return [];
+    let tags = this.completeTagsFor(id);
+
+    const parent = parentId(id);
+    if (parent) {
+      const parentTags = this.completeTagsFor(parent);
+      tags = tags.filter((tag) => {
+        if (tag.keep) {
+          return true;  // don't filter this one
+        }
+        // Look for an exact matching parent tag. If we find one, don't include this here.
+        return !parentTags.find((parentTag) => {
+          return tag.name === parentTag.name && tag.value === parentTag.value;
+        });
+      });
     }
+
+    return tags;
   }
 
   /**

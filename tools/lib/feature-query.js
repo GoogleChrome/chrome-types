@@ -17,16 +17,63 @@
 
 import * as chromeTypes from '../../types/chrome.js';
 import { parentId } from './traverse.js';
+import { isDeepEqual } from './equal.js';
 
 
 export class FeatureQuery {
   #feature;
 
   /**
-   * @param {{[name: string]: chromeTypes.FeatureSpec|chromeTypes.FeatureSpec[]}} feature
-   * @param {(f: chromeTypes.FeatureSpec) => boolean} extraFilter
+   * Merges complex features as described in Chrome's source code here:
+   *   https://chromium.googlesource.com/chromium/src/+/refs/heads/main/chrome/common/extensions/api/_features.md#simple-and-complex-features
+   *
+   * We take a relaxed approach to complex features. Most just describe two possible options for
+   * permission dependencies. These are merged in the .d.ts file and left ambiguous to the reader,
+   * and on http://developer.chrome.com we just present them without specific "AND" or "OR".
+   *
+   * If this returns `null`, then the feature is considered disallowed.
+   *
+   * @param {chromeTypes.FeatureSpec[]} q
+   * @return {chromeTypes.FeatureSpec | null | void}
    */
-  constructor(feature, extraFilter = () => true) {
+  mergeComplexFeature(q) {
+    /** @type {Set<string>} */
+    const mergedDependencies = new Set();
+
+    // Find all dependencies defined here, and remove some keys so we can do deep comparison.
+    const compare = q.map((cand) => {
+      // We also remove `default_parent` here.
+      const { dependencies = [], default_parent, ...clone } = cand;
+      dependencies.forEach((dep) => mergedDependencies.add(dep));
+      return clone;
+    });
+
+    // If all the dependencies equal the first, then just return a single dep with the new unified
+    // dependencies.
+    const first = compare[0];
+    const allMatch = !compare.slice(1).some((cand) => !isDeepEqual(cand, first));
+    if (allMatch) {
+      return {
+        ...first,
+        dependencies: [...mergedDependencies],
+      };
+    }
+
+    // Features that are unclear here will throw.
+  }
+
+  /**
+   * @param {chromeTypes.FeatureSpec} f
+   * @return {boolean}
+   */
+  filter(f) {
+    return basicFilter(f);
+  }
+
+  /**
+   * @param {{[name: string]: chromeTypes.FeatureSpec|chromeTypes.FeatureSpec[]}} feature
+   */
+  constructor(feature) {
     /** @type {{[name: string]: chromeTypes.FeatureSpec[]}} */
     const localFeature = {};
 
@@ -47,10 +94,7 @@ export class FeatureQuery {
         }
       });
 
-      all = all.filter((f) => {
-        return basicFilter(f) && extraFilter(f);
-      });
-
+      all = all.filter((f) => this.filter(f));
       localFeature[name] = all;
     }
 
@@ -59,68 +103,75 @@ export class FeatureQuery {
 
   /**
    * @param {string} id
-   * @return {chromeTypes.FeatureSpec[]}
+   * @param {boolean=} chooseDefaultParent
+   * @return {chromeTypes.FeatureSpec | null}
    */
-  #flatten = (id) => {
-    const q = this.#feature[id] ?? [{}];
+  #flatten = (id, chooseDefaultParent = false) => {
+    const all = this.#feature[id] ?? [{}];
 
-    const parent = parentId(id);
-    if (!parent) {
-      // Even though q might be a list of many, we don't filter by default_parent here.
-      // Direct calls to #flatten should return both options, since it's not a parent request.
-      return q;
-    }
+    /** @type {chromeTypes.FeatureSpec | Null} */
+    let feature = all[0] ?? null;
 
-    return q.map((feature) => {
-      if (feature.noparent) {
-        return feature;  // we stop here
-      }
-
-      const parents = this.#flatten(parent);
-
-      // If the parents have a default, choose that.
-      const defaultParent = parents.find(({default_parent}) => default_parent);
-      if (defaultParent) {
-        parents.splice(0, parents.length, defaultParent);
-      }
-
-      return parents.map((p) => {
-        // Merge the current feature with the parent we find. It wins by basic assignment: e.g.,
-        // arrays aren't intelligently merged.
-        return { ...p, ...feature };
-      });
-
-    }).flat();
-  };
-
-  /**
-   * Confirms that at least one expansions in the heirarchy passes the given check.
-   *
-   * @param {string} id
-   * @param {(f: chromeTypes.FeatureSpec) => boolean} check
-   * @return {boolean}
-   */
-  someFeature(id, check) {
-    const flat = this.#flatten(id);
-
-    // Ensure that at least one of our expansions pass.
-    // If that is empty, this will return false, which is correct: we were filtered out for basic
-    // reasons (e.g., feature is behind a flag).
-    return flat.some((opt) => {
-      if (!check(opt)) {
-        return false;
-      }
-
-      // Ensure that all of our dependencies pass. Dependencies are ALL, not some, so we have to
-      // check all of them.
-      for (const dep of opt.dependencies ?? []) {
-        if (!this.someFeature(dep, check)) {
-          return false;
+    if (all.length > 1) {
+      if (chooseDefaultParent) {
+        const defaultParent = all.find(({default_parent}) => default_parent);
+        if (defaultParent) {
+          return defaultParent;
         }
       }
 
-      return true;
-    });
+      const update = this.mergeComplexFeature(all);
+      if (update === undefined) {
+        throw new Error(`could not merge complex feature data, you should update FeatureQuery.mergeComplexFeature and subclass(es): ${JSON.stringify(all)}`);
+      }
+      feature = update;
+    }
+
+    // We're not allowed to proceed.
+    if (feature === null) {
+      return null;
+    }
+
+    // If there's no parent, or this feature specifies `noparent`, then stop here.
+    const parent = parentId(id);
+    if (!parent || feature.noparent) {
+      return feature;
+    }
+
+    // Grab the parent feature, and allow preferencing the default parent.
+    // Merge the current feature with the parent we find. It wins by basic assignment: e.g.,
+    // arrays aren't intelligently merged.
+    const parentFeature = this.#flatten(parent, true);
+    return { ...parentFeature, ...feature };
+  };
+
+  /**
+   * Confirms that the specified feature is allowed and passes the given check.
+   *
+   * @param {string} id
+   * @param {(f: chromeTypes.FeatureSpec, id: string) => boolean | void} check
+   * @return {boolean}
+   */
+  checkFeature(id, check) {
+    const f = this.#flatten(id);
+    if (f === null) {
+      return false;
+    }
+
+    // Ensure that our expansion passes.
+    if (check(f, id) === false) {
+      return false;
+    }
+
+    // Ensure that all of our dependencies pass. Dependencies are ALL, not some, so we have to
+    // check all of them.
+    for (const dep of f.dependencies ?? []) {
+      if (this.checkFeature(dep, check) === false) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /**
@@ -128,7 +179,7 @@ export class FeatureQuery {
    * @return {boolean}
    */
   isAvailable(id) {
-    return this.someFeature(id, () => true);
+    return this.checkFeature(id, () => true);
   }
 }
 
