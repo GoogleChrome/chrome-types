@@ -26,85 +26,102 @@ export class FeatureQuery {
    * @param {{[name: string]: chromeTypes.FeatureSpec|chromeTypes.FeatureSpec[]}} feature
    */
   constructor(feature) {
-    // TODO: rewrite -list for old data
+    for (const raw of Object.values(feature)) {
+      const all = [raw].flat();
+      all.forEach((f) => {
+        // This rewrites historic names for "allowlist" and "blocklist", which appear in historic
+        // versions of the Chrome source code.
+        const m = {'white': 'allow', 'black': 'block'};
+        for (const key in m) {
+          const prev = f[key + 'list'];
+          if (!prev) {
+            continue;
+          }
+          delete f[key + 'list'];
+          const update = m[key] + 'list';
+          f[update] = prev;
+        }
+      });
+    }
 
     this.#feature = feature;
   }
 
   /**
    * @param {string} id
-   * @return {chromeTypes.FeatureSpec | chromeTypes.FeatureSpec[] | null}
+   * @return {chromeTypes.FeatureSpec[]}
    */
-  #query = (id) => {
-    const out = this.#feature[id];
-    if (out === undefined) {
-      return {};
+  #flatten = (id) => {
+    const q = [this.#feature[id] ?? {}].flat().filter(basicFilter);
+
+    const parent = parentId(id);
+    if (!parent) {
+      // Even though q might be a list of many, we don't filter by default_parent here.
+      // Direct calls to #flatten should return both options, since it's not a parent request.
+      return q;
     }
 
-    const arr = [out].flat().filter(basicFilter);
-    return arr.length > 1 ? arr : arr[0] ?? null;
+    return q.map((feature) => {
+      if (feature.noparent) {
+        return feature;  // we stop here
+      }
+
+      const parents = this.#flatten(parent);
+
+      // If the parents have a default, choose that.
+      const defaultParent = parents.find(({default_parent}) => default_parent);
+      if (defaultParent) {
+        parents.splice(0, parents.length, defaultParent);
+      }
+
+      return parents.map((p) => {
+        // Merge the current feature with the parent we find. It wins by basic assignment: e.g.,
+        // arrays aren't intelligently merged.
+        return { ...p, ...feature };
+      });
+
+    }).flat();
   };
+
+  /**
+   * Confirms that at least one expansions in the heirarchy passes the given check.
+   *
+   * @param {string} id
+   * @param {(f: chromeTypes.FeatureSpec) => boolean} check
+   * @return {boolean}
+   */
+  someFeature(id, check) {
+    const flat = this.#flatten(id);
+
+    // Ensure that at least one of our expansions pass.
+    // If that is empty, this will return false, which is correct: we were filtered out for basic
+    // reasons (e.g., feature is behind a flag).
+    return flat.some((opt) => {
+      if (!check(opt)) {
+        return false;
+      }
+
+      // Ensure that all of our dependencies pass. Dependencies are ALL, not some, so we have to
+      // check all of them.
+      for (const dep of opt.dependencies ?? []) {
+        if (!this.someFeature(dep, check)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }
 
   /**
    * @param {string} id
    * @return {boolean}
    */
   availableInExtensions(id) {
-    const original = id;
-
-    /** @type {(f: chromeTypes.FeatureSpec?) => boolean} */
-    const check = (f) => {
-      return f && (!f.extension_types || f.extension_types.includes('extension')) || false;
-    };
-
-
-    while (id) {
-      let q = this.#query(id);
-      if (q === null) {
-        return false;
-      }
-
-      // Find the defaultParent (or just the feature, if there's only one).
-      const defaultParent = Array.isArray(q) ? q.find(({ default_parent }) => default_parent) ?? null : q;
-      if (defaultParent) {
-        q = defaultParent;
-      }
-
-      if (Array.isArray(q)) {
-        // TODO: possible multiple allows (?)
-        const allowed = q.find(check);
-        if (!allowed) {
-          return false;
-        }
-
-        const allowedAll = q.filter(check);
-        if (allowedAll.length !== 1) {
-          console.warn('got many allowed', { id, original }, allowedAll);
-        }
-
-        q = allowed;
-      } else if (!check(q)) {
-        return false;
-      }
-
-      if (q.dependencies?.length) {
-        for (const dep of q.dependencies) {
-          if (!this.availableInExtensions(dep)) {
-            return false;
-          }
-        }
-      }
-
-      if (q.noparent) {
-        return false;
-      }
-
-      id = parentId(id);
-    }
-
-    return true;
+    return this.someFeature(id, (f) => {
+      return !f.extension_types || f.extension_types.includes('extension');
+    });
   }
-
 }
 
 
