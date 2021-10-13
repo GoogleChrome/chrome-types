@@ -26,6 +26,7 @@ import { namespaceNameFromId, parentId } from './lib/traverse.js';
 import { RenderContext } from './lib/render-context.js';
 import { FeatureQuery } from './lib/feature-query.js';
 import { mostReleasedChannel } from './lib/channel.js';
+import log from 'fancy-log';
 
 
 async function run() {
@@ -80,11 +81,7 @@ Options:
  */
 
 // Generated on ${renderAt}
-// Built at ${o.definitionsRevision}${versionSuffix}
-`);
-
-  const preambleFile = new URL('../content/preamble.d.ts', import.meta.url);
-  renderParts.push(fs.readFileSync(preambleFile, 'utf-8'));
+// Built at ${o.definitionsRevision}${versionSuffix}`);
 
   /** @type {FeatureQuery} */
   let fq;
@@ -93,12 +90,19 @@ Options:
     // We include all APIs, MV2 and MV3 etc, to render on the site.
     fq = new FeatureQueryAll(o.feature);
 
+    renderParts.push(`// Includes all types, including MV2 + Platform Apps APIs.`);
+
   } else {
     fq = new FeatureQueryModern(o.feature);
+
+    renderParts.push(`// Includes MV3+ APIs only.`);
 
     const extraMV3File = new URL('../content/extra-mv3.d.ts', import.meta.url);
     renderParts.push(fs.readFileSync(extraMV3File, 'utf-8'));
   }
+
+  const preambleFile = new URL('../content/preamble.d.ts', import.meta.url);
+  renderParts.push(fs.readFileSync(preambleFile, 'utf-8'));
 
   const renderOverride = new RenderOverride(allNamespaceNames, fq);
 
@@ -107,7 +111,10 @@ Options:
   const buf = renderContext.renderAll(Object.values(o.api));
   renderParts.push(buf.render(true));
 
-  process.stdout.write(renderParts.join('\n'));
+  const out = Buffer.from(renderParts.join('\n\n'));
+  log.warn(`Built ${argv.all ? 'all' : 'MV3+'} types, generated ${out.length} bytes of .d.ts`);
+
+  process.stdout.write(out);
 }
 
 
