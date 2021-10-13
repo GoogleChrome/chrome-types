@@ -644,6 +644,22 @@ export class RenderContext {
 
     return null;
   }
+
+  /**
+   * @param {chromeTypes.TypeSpec} spec
+   * @param {string} id
+   */
+  #announce = (spec, id) => {
+    // TODO: broadcast here
+
+    if (this.#skipCallbackCount) {
+      return;
+    }
+
+    for (const callback of this.#callbacks) {
+      callback(spec, id, []);
+    }
+  };
 }
 
 

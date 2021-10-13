@@ -184,3 +184,6 @@ export interface NamespaceSpec extends SharedSpec {
 
 export type SpecCallback = (spec: TypeSpec, id: string, tags: {name: string, value?: string}[]) => void;
 
+
+export type Tag = { name: string, value?: string };
+
