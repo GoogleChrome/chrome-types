@@ -26,6 +26,23 @@ export class RenderContext {
   #override;
   #t;
 
+  /** @type {chromeTypes.SpecCallback[]} */
+  #callbacks = [];
+
+  #skipCallbackCount = 0;
+
+  /**
+   * @param {() => void} fn
+   */
+  #skipCallbacks = (fn) => {
+    try {
+      ++this.#skipCallbackCount;
+      fn();
+    } finally {
+      --this.#skipCallbackCount;
+    }
+  };
+
   /**
    * @param {overrideTypes.RenderOverride} override
    */
@@ -34,6 +51,13 @@ export class RenderContext {
 
     const isVisible = override.isVisible.bind(override);
     this.#t = new TraverseContext(isVisible);
+  }
+
+  /**
+   * @param {chromeTypes.SpecCallback} callback
+   */
+  addCallback(callback) {
+    this.#callbacks.push(callback);
   }
 
   /**
@@ -229,36 +253,59 @@ export class RenderContext {
       }
     }
 
-    const expansions = this.#t.expandFunctionParams(spec, id);
-    for (const [returnSpec, ...params] of expansions) {
-      buf.line();
+    /** @type {Map<string, chromeTypes.NamedTypeSpec>} */
+    const allParams = new Map();
 
-      // Limit the comments here to the parameters of this specific expansion.
-      const virtualSpec = {
-        paramaters: params,
-        returns: returnSpec,
-        ...spec,
-      };
-      buf.append(this.renderComment(virtualSpec, id));
+    // Don't invoke symbol callbacks while we render this, because there's many possible expansions.
+    this.#skipCallbacks(() => {
+      const expansions = this.#t.expandFunctionParams(spec, id);
 
-      const suffix = `: ${this.renderType(returnSpec, `${id}.return`)};`
-      buf.line(`${prefix}${effectiveName}(`);
-
-      if (params.length === 0) {
-        buf.append(`)${suffix}`);
-        continue;
-      }
-
-      buf.start('');
-      this.#t.forEach(params, id, (param, childId) => {
-        const name = last(childId);
-        const effectiveName = isValidToken(name) ? name : `_${name}`;
-        const opt = param.optional ? '?' : '';
-        buf.line(`${effectiveName}${opt}: ${this.renderType(param, childId)},`);
+      // Record all possible expansions, except void, which isn't rendered / does not exist.
+      expansions.flat().forEach((spec) => {
+        if (spec.type !== 'void') {
+          allParams.set(spec.name, spec);
+        }
       });
 
-      buf.end(')');
-      buf.append(`${suffix}`);
+      for (const [returnSpec, ...params] of expansions) {
+        buf.line();
+  
+        // Limit the comments here to the parameters of this specific expansion.
+        const virtualSpec = {
+          paramaters: params,
+          returns: returnSpec,
+          ...spec,
+        };
+        buf.append(this.renderComment(virtualSpec, id));
+  
+        const suffix = `: ${this.renderType(returnSpec, `${id}.${returnSpec.name}`)};`
+        buf.line(`${prefix}${effectiveName}(`);
+  
+        if (params.length === 0) {
+          buf.append(`)${suffix}`);
+          continue;
+        }
+  
+        buf.start('');
+        this.#t.forEach(params, id, (param, childId) => {
+          const name = last(childId);
+          const effectiveName = isValidToken(name) ? name : `_${name}`;
+          const opt = param.optional ? '?' : '';
+          buf.line(`${effectiveName}${opt}: ${this.renderType(param, childId)},`);
+        });
+  
+        buf.end(')');
+        buf.append(`${suffix}`);
+      }
+    });
+
+    // Iterate through all parameters and return values.
+    if (this.#skipCallbackCount === 0) {
+      for (const param of allParams.values()) {
+        const childId = `${id}.${param.name}`;
+        this.renderComment(param, childId);
+        this.renderType(param, childId);
+      }
     }
 
     return buf;
@@ -289,16 +336,13 @@ export class RenderContext {
         throw new Error(`invalid enum: ${JSON.stringify(spec)}`);
       }
 
-      /** @type {string[]|number[]} */
-      let primitiveOnly;
-      if (typeof spec.enum[0] === 'object') {
-        // TODO(samthor): We could create virtual fake types for this so the comments live on.
-        const pairs = /** @type {{name: string}[]} */ (spec.enum);
-        primitiveOnly = pairs.map(({ name }) => name);
-      } else {
-        primitiveOnly = /** @type {string[]|number[]} */ (spec.enum);
-      }
-
+      /** @type {(string | number)[]} */
+      const primitiveOnly = spec.enum.map((raw) => {
+        if (typeof raw === 'object') {
+          return raw.name;
+        }
+        return raw;
+      });
       return maybeWrapAmbig(primitiveOnly.map((x) => JSON.stringify(x)).join(' | '));
     }
 
@@ -306,17 +350,30 @@ export class RenderContext {
       if (spec.choices.length === 0) {
         throw new Error(`invalid choices, no options: ${JSON.stringify(spec)}`);
       }
-      return maybeWrapAmbig(spec.choices.map((choice, i) => {
-        const childId = `${id}._${i}`;
-        return this.renderType(choice, childId);
-      }).join(' | '));
+
+      // This confirms that the choices don't, e.g., have two object types that might possibly
+      // have colliding properties.
+      // This only matters if we're doing history types.
+      // What's the fix if this fires? Probably to add a `childId` when we render the specific
+      // choices.
+      let seenWithDerivatives = false;
+      spec.choices.forEach((c) => {
+        if (c.properties || c.parameters || c.returns || c.returns_async) {
+          if (seenWithDerivatives) {
+            throw new Error(`found choices with ambiguous options: ${JSON.stringify(spec.choices)}`);
+          }
+          seenWithDerivatives = true;
+        }
+      });
+
+      return maybeWrapAmbig(spec.choices.map((choice) => this.renderType(choice, id)).join(' | '));
     }
 
     if (spec.type === 'array') {
       // HACK: Some array types are missing items, just assume it's a number.
       const { items = { type: 'number' } } = spec;
 
-      const inner = this.renderType(items, `${id}._`, true);
+      const inner = this.renderType(items, `${id}[]`, true);
 
       // There's a maximum number of items here. Render tuples from min -> max.
       if (spec.maxItems) {
@@ -341,7 +398,7 @@ export class RenderContext {
 
     if (spec.type === 'object') {
       const additionalPropertiesPart = spec.additionalProperties ?
-        `[name: string]: ${this.renderType(spec.additionalProperties, id)}` :
+        `[name: string]: ${this.renderType(spec.additionalProperties, `${id}{}`)}` :
         '';
 
       const props = this.#t.propertiesFor(spec, id);
@@ -562,6 +619,13 @@ export class RenderContext {
 
     // Append any additional tags. These don't get rewritten.
     tags.push(...this.#override.tagsFor(spec, id) ?? []);
+
+    // Invoke callbacks. Used for history.
+    if (this.#skipCallbackCount === 0) {
+      for (const callback of this.#callbacks) {
+        callback(spec, id, tags);
+      }
+    }
 
     if (description || tags.length) {
       const buf = new RenderBuffer();

@@ -195,63 +195,83 @@ export class TraverseContext {
   }
 
   /**
-   * @param {chromeTypes.TypeSpec} spec
-   * @param {string} id
-   * @return {[chromeTypes.TypeSpec, ...chromeTypes.TypeSpec[]][]}
+   * @param {chromeTypes.TypeSpec} spec of the function which itself has returns_async
+   * @return {{
+   *   withPromise: chromeTypes.TypeSpec,
+   *   withCallback: chromeTypes.TypeSpec,
+   * }=}
    */
-  expandFunctionParams(spec, id) {
-    const params = (spec.parameters ?? []).filter((spec, i) => {
-      const name = spec.name || `_${i}`;
-      return this.#filter(spec, `${id}.${name}`);
-    });
+  maybeExpandFunctionReturnsAsync(spec) {
+    const { returns_async, ...clone } = spec;
+    if (!returns_async) {
+      return undefined;
+    }
+    if (spec.returns) {
+      throw new Error(`got returns_async and returns on function spec: ${JSON.stringify(spec)}`);
+    }
 
-    // This always includes the return value in the 0th position.
-    /** @type {[chromeTypes.TypeSpec, ...chromeTypes.TypeSpec[]][]} */
-    const expansions = [];
+    const asyncParameters = returns_async.parameters ?? [];
+    if (asyncParameters.length > 1) {
+      throw new Error(`returns_async with too many params: ${JSON.stringify(spec.returns_async)}`);
+    }
+    if (spec.returns) {
+      throw new Error(`returns_async with additional returns option: ${JSON.stringify(spec)}`);
+    }
 
-    // If this is actually a Promise-supporting API, then we call ourselves again to support both
-    // callback and Promise-based versions.
-    if (spec.returns_async) {
-      const asyncParameters = spec.returns_async.parameters ?? [];
-      if (asyncParameters.length > 1) {
-        throw new Error(`returns_async with too many params: ${JSON.stringify(spec.returns_async)}`);
-      }
-      if (spec.returns) {
-        throw new Error(`returns_async with additional returns option: ${JSON.stringify(spec)}`);
-      }
+    // This can be undefined, which is fine: treated as void for the Promise type.
+    let singleReturnsAsyncParam = asyncParameters[0] ?? { type: 'void' };
 
-      // This can be undefined, which is fine: treated as void for the Promise type.
-      let singleReturnsAsyncParam = asyncParameters[0] ?? { type: 'void' };
+    // HACK: An optional param here is included on the Promise too.
+    if (singleReturnsAsyncParam?.optional) {
+      singleReturnsAsyncParam = {
+        choices: [singleReturnsAsyncParam, { type: 'undefined' }],
+      };
+    }
 
-      // HACK: An optional param here is included on the Promise too.
-      if (singleReturnsAsyncParam?.optional) {
-        singleReturnsAsyncParam = {
-          choices: [ singleReturnsAsyncParam, { type: 'undefined' } ],
-        };
-      }
-
-      // Call ourselves again without `returns_async`, so we can use the `Promise` return type.
-      // Replace the 0th result with a Promise.
-      const { returns_async: _, ...clone } = spec;
-      const promisified = this.expandFunctionParams(clone, id);
-
-      for (const out of promisified) {
-        if (out[0].type !== 'void') {
-          throw new Error(`can't promisify returns_async, got non-void ret: ${JSON.stringify(out)}`);
-        }
-        out[0] = {
+    return {
+      withPromise: {
+        ...clone,
+        returns: {
           $ref: 'Promise',
           value: [
             'return',
             singleReturnsAsyncParam,
           ],
-        }
-      }
-      expansions.push(...promisified);
+        },
+      },
+      withCallback: {
+        ...clone,
+        parameters: [...spec.parameters ?? [], returns_async],
+      },
+    };
+  }
 
-      // Push this as a callback and continue execution so we get all options.
-      params.push(spec.returns_async);
+  /**
+   * @param {chromeTypes.TypeSpec} spec
+   * @param {string} id
+   * @return {[chromeTypes.NamedTypeSpec, ...chromeTypes.NamedTypeSpec[]][]}
+   */
+  expandFunctionParams(spec, id) {
+    // If this is actually a Promise-supporting API, then we call ourselves again to support both
+    // callback and Promise-based versions.
+    const expanded = this.maybeExpandFunctionReturnsAsync(spec);
+    if (expanded) {
+      return [
+        ...this.expandFunctionParams(expanded.withPromise, id),
+        ...this.expandFunctionParams(expanded.withCallback, id),
+      ];
     }
+
+    const params = (spec.parameters ?? []).filter((spec) => {
+      if (!spec.name) {
+        throw new Error(`function parameter missing name: ${JSON.stringify(spec)} id=${id}`);
+      }
+      return this.#filter(spec, `${id}.${spec.name}`);
+    });
+
+    // This always includes the return value in the 0th position.
+    /** @type {[chromeTypes.TypeSpec, ...chromeTypes.TypeSpec[]][]} */
+    const expansions = [];
 
     let seenNonOptional = false;
 
@@ -293,10 +313,8 @@ export class TraverseContext {
 
       // Ensure that there's a return type, or fall back to `void`.
       const result = /** @type {chromeTypes.TypeSpec[]} */ (work.filter((x) => x !== null));
-      expansions.push([
-        spec.returns ?? { type: 'void' },
-        ...result,
-      ]);
+      const returns = spec.returns ?? { type: 'void' };
+      expansions.push([{ name: 'return', ...returns }, ...result]);
     }
 
     return expansions;

@@ -108,6 +108,25 @@ Options:
 
   earlyOverride(o.api);
   const renderContext = new RenderContext(renderOverride);
+
+  /** @type {Map<string, any>} */
+  const keys = new Map();
+
+  renderContext.addCallback((spec, id, tags) => {0
+    if (keys.has(id)) {
+      throw new Error(`got dup id: ${id}`);
+    }
+
+    // should never happen
+    if (spec.type === 'void') {
+      throw new Error(`got void`);
+    }
+
+    // TODO: do something with this
+    keys.set(id, spec);
+    console.warn('symbol', id);
+  });
+
   const buf = renderContext.renderAll(Object.values(o.api));
   renderParts.push(buf.render(true));
 

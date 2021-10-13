@@ -140,6 +140,12 @@ export interface TypeSpec extends SharedSpec {
   noinline_doc?: boolean | 'True';
 }
 
+
+export interface NamedTypeSpec extends TypeSpec {
+  name: string;
+}
+
+
 /**
  * This is the type of instances of the "event" array found directly as part of a namespace or type.
  * Events are effectively functions plus options.
@@ -174,3 +180,7 @@ export interface NamespaceSpec extends SharedSpec {
   compiler_options?: Object;
   internal?: boolean;
 }
+
+
+export type SpecCallback = (spec: TypeSpec, id: string, tags: {name: string, value?: string}[]) => void;
+
