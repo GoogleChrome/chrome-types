@@ -169,14 +169,14 @@ export class TraverseContext {
         return;
       }
 
-      if (eprop.$ref) {
-        throw new Error(`event had $ref as part of function type: ${JSON.stringify(eprop)}`);
-      }
-
       /** @type {chromeTypes.TypeSpec} */
       const inner = {
         type: 'function',
       };
+      if (eprop.$ref) {
+        // This is invalid, but we rewrite it in typeOverride.
+        inner.$ref = eprop.$ref;
+      }
       if (returns) {
         inner.returns = returns;
       }
@@ -270,7 +270,7 @@ export class TraverseContext {
     });
 
     // This always includes the return value in the 0th position.
-    /** @type {[chromeTypes.TypeSpec, ...chromeTypes.TypeSpec[]][]} */
+    /** @type {[chromeTypes.NamedTypeSpec, ...chromeTypes.NamedTypeSpec[]][]} */
     const expansions = [];
 
     let seenNonOptional = false;
@@ -312,7 +312,7 @@ export class TraverseContext {
       }
 
       // Ensure that there's a return type, or fall back to `void`.
-      const result = /** @type {chromeTypes.TypeSpec[]} */ (work.filter((x) => x !== null));
+      const result = /** @type {chromeTypes.NamedTypeSpec[]} */ (work.filter((x) => x !== null));
       const returns = spec.returns ?? { type: 'void' };
       expansions.push([{ name: 'return', ...returns }, ...result]);
     }

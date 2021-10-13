@@ -127,6 +127,10 @@ export class RenderContext {
   renderInnerNamespace(namespace, toplevel) {
     const buf = new RenderBuffer();
 
+    // TODO: We do an awkward cast here, because typeOverride only accepts TypeSpec.
+    namespace = /** @type {chromeTypes.NamespaceSpec} */ (
+        this.#override.typeOverride(namespace, toplevel)) ?? namespace;
+
     // Render top-level types. These are either interfaces or types (probably enum or choice).
     this.#t.forEach(namespace.types, toplevel, (spec, id) => {
       const name = last(id);
@@ -232,6 +236,11 @@ export class RenderContext {
    * @param {boolean} isNamespaceFunction true if in namespace, false if within class
    */
   renderTopFunction(spec, id, isNamespaceFunction = false) {
+    spec = this.#override.typeOverride(spec, id) ?? spec;
+    if (spec.$ref) {
+      throw new Error(`got function which has '$ref' to other: ${JSON.stringify(spec)}`);
+    }
+
     if (!spec.name) {
       throw new Error(`cannot render unnamed function: ${JSON.stringify(spec)}`);
     }

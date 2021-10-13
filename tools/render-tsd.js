@@ -58,8 +58,6 @@ Options:
   /** @type {chromeTypes.ProcessedAPIData} */
   const o = JSON.parse(await getStdin());
 
-  const allNamespaceNames = Object.keys(o.api);
-
   /** @type {string[]} */
   const renderParts = [];
 
@@ -104,9 +102,7 @@ Options:
   const preambleFile = new URL('../content/preamble.d.ts', import.meta.url);
   renderParts.push(fs.readFileSync(preambleFile, 'utf-8'));
 
-  const renderOverride = new RenderOverride(allNamespaceNames, fq);
-
-  earlyOverride(o.api);
+  const renderOverride = new RenderOverride(o.api, fq);
   const renderContext = new RenderContext(renderOverride);
 
   /** @type {Map<string, any>} */
@@ -134,33 +130,6 @@ Options:
   log.warn(`Built ${argv.all ? 'all' : 'MV3+'} types, generated ${out.length} bytes of .d.ts`);
 
   process.stdout.write(out);
-}
-
-
-/**
- * @param {{[api: string]: chromeTypes.NamespaceSpec}} api
- */
-function earlyOverride(api) {
-  // Fix contextMenus not having the right OnClickData type.
-  const existing = api['contextMenus'].types?.find(({ id }) => id === 'OnClickData');
-  if (!existing) {
-    const clone = [
-      ...api['contextMenusInternal'].types ?? [],
-    ].map((x) => {
-      return { ...x, nodoc: false };
-    });
-    api['contextMenus'].types?.push(...clone);
-  }
-
-  // Fix contextMenus.onClicked incorrectly $ref-ing another function.
-  const onClickedEvent = api['contextMenus'].events?.find(({ name }) => name === 'onClicked');
-  if (onClickedEvent && onClickedEvent.$ref) {
-    delete onClickedEvent.$ref;
-    onClickedEvent.parameters = [
-      { $ref: 'OnClickData', name: 'info' },
-      { $ref: 'tabs.Tab', name: 'tab' },
-    ];
-  }
 }
 
 
@@ -221,14 +190,17 @@ class FeatureQueryAll extends FeatureQuery {
 class RenderOverride {
   #commentRewriter;
   #fq;
+  #api;
 
   /**
-   * @param {Iterable<string>} allNamespaceNames
+   * @param {{[name: string]: chromeTypes.NamespaceSpec}} api
    * @param {FeatureQuery} fq
    */
-  constructor(allNamespaceNames, fq) {
+  constructor(api, fq) {
+    const allNamespaceNames = Object.keys(api);
     this.#commentRewriter = buildNamespaceAwareMarkdownRewrite(allNamespaceNames);
     this.#fq = fq;
+    this.#api = api;
   }
 
   /**
@@ -254,6 +226,7 @@ class RenderOverride {
     }
 
     switch (id) {
+      case 'api:contextMenus.OnClickData':
       case 'api:notifications.NotificationBitmap':
         // In old versions of Chrome, this is incorrectly marked nodoc.
         return true;
@@ -289,6 +262,37 @@ class RenderOverride {
    * @param {string} id
    */
   typeOverride(spec, id) {
+
+    // Fix contextMenus not having the right OnClickData type, and it only being present in the
+    // "contextMenusInternal" namespace.
+    if (id === 'api:contextMenus') {
+      const namespace = /** @type {chromeTypes.NamespaceSpec} */ (spec);
+      const existing = namespace.types?.find(({ id }) => id === 'OnClickData');
+      if (existing) {
+        return;
+      }
+      return {
+        ...namespace,
+        types: [
+          ...namespace.types ?? [],
+          ...this.#api['contextMenusInternal'].types ?? [],
+        ],
+      };
+    }
+
+    // Fix contextMenus.onClicked incorrectly $ref-ing another function.
+    if (id === 'api:contextMenus.onClicked') {
+      if (!spec.$ref) {
+        return;
+      }
+      const { $ref: _$ref, ...clone } = spec;
+      clone.parameters = [
+        { $ref: 'OnClickData', name: 'info' },
+        { $ref: 'tabs.Tab', name: 'tab' },
+      ];
+      return clone;
+    }
+
     // Replace callback types to do with Event.
     switch (id) {
       case 'api:events.Event.addListener.callback':
