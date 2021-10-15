@@ -172,9 +172,9 @@ export class RenderOverride {
       case 'api:events.Event.hasListener.callback':
         return { $ref: 'H' };
 
-      case 'api:events.Event.addRules.rules._':
-      case 'api:events.Event.addRules.callback.rules._':
-      case 'api:events.Event.getRules.callback.rules._':
+      case 'api:events.Event.addRules.rules[]':
+      case 'api:events.Event.addRules.callback.rules[]':
+      case 'api:events.Event.getRules.callback.rules[]':
         return { $ref: 'Rule', value: ['', { $ref: 'C' }, { $ref: 'A' }] };
     }
 
@@ -219,10 +219,10 @@ export class RenderOverride {
     // Upgrade ambiguous "any" to better template types as needed.
     if (spec.type === 'any') {
       switch (id) {
-        case 'api:events.Rule.conditions._':
+        case 'api:events.Rule.conditions[]':
           return { $ref: 'C' };
 
-        case 'api:events.Rule.actions._':
+        case 'api:events.Rule.actions[]':
           return { $ref: 'A' };
 
         case 'api:contentSettings.ContentSetting.get.return.setting':
