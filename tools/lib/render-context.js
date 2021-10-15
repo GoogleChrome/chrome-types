@@ -189,9 +189,15 @@ export class RenderContext {
     // constructed for declarative events. It takes "itself", in that, it can be constructed
     // with a number of properties which get cloned onto the real object.
     let mode = 'interface';
-    if (prop.properties?.['instanceType']) {
+    const instanceTypeProp = prop.properties?.['instanceType'];
+    if (instanceTypeProp) {
       mode = 'class';
-      buf.line(`constructor(arg: Omit<${name}, 'instanceType'>);`);
+      if (instanceTypeProp.nodoc) {
+        // TODO: will this work with shaped objects?
+        buf.line(`constructor(arg: ${name});`);
+      } else {
+        buf.line(`constructor(arg: Omit<${name}, 'instanceType'>);`);
+      }
     }
 
     let needsGap = false;
