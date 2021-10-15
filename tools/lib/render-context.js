@@ -323,8 +323,12 @@ export class RenderContext {
     if (this.#skipCallbackCount === 0) {
       for (const param of allParams.values()) {
         const childId = `${id}.${param.name}`;
-        this.renderComment(param, childId);
         this.renderType(param, childId);
+
+        // TODO(samthor): this is a bit ugly, we announce in odd places.
+        // We need to announce these because we only normally announce when rendering a comment,
+        // and params/return values aren't _specifically_ commented, only as part of their parent.
+        this.#announce(param, childId);
       }
     }
 
@@ -655,11 +659,7 @@ export class RenderContext {
     tags.push(...this.#override.tagsFor(spec, id) ?? []);
 
     // Invoke callbacks. Used for history.
-    if (this.#skipCallbackCount === 0) {
-      for (const callback of this.#callbacks) {
-        callback(spec, id, tags);
-      }
-    }
+    this.#announce(spec, id);
 
     if (description || tags.length) {
       const buf = new RenderBuffer();
@@ -675,14 +675,11 @@ export class RenderContext {
    * @param {string} id
    */
   #announce = (spec, id) => {
-    // TODO: broadcast here
-
     if (this.#skipCallbackCount) {
       return;
     }
-
     for (const callback of this.#callbacks) {
-      callback(spec, id, []);
+      callback(spec, id);
     }
   };
 }

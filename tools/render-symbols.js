@@ -57,10 +57,10 @@ This is used internally to generate historic version data for Chrome's APIs.
   const renderOverride = new RenderOverride(o.api, fq);
   const renderContext = new RenderContext(renderOverride);
 
-  /** @type {Map<string, {spec: chromeTypes.TypeSpec, tags: chromeTypes.Tag[]}>} */
+  /** @type {Map<string, chromeTypes.TypeSpec>} */
   const symbols = new Map();
 
-  renderContext.addCallback((spec, id, tags) => {
+  renderContext.addCallback((spec, id) => {
     if (symbols.has(id)) {
       throw new Error(`got dup symbol: ${id}`);
     }
@@ -71,7 +71,7 @@ This is used internally to generate historic version data for Chrome's APIs.
       throw new Error(`got void`);
     }
 
-    symbols.set(id, { spec, tags });
+    symbols.set(id, spec);
   });
 
   renderContext.renderAll(Object.values(o.api));
@@ -86,22 +86,22 @@ This is used internally to generate historic version data for Chrome's APIs.
     return 0;
   });
 
-  const out = Object.fromEntries(keys.map((symbol) => {
-    const x = symbols.get(symbol);
-    const { spec, tags } = /** @type {NonNullable<typeof x>} */ (x);
+  const out = Object.fromEntries(keys.map((id) => {
+    const spec = /** @type {chromeTypes.TypeSpec} */ (symbols.get(id));
 
+    // This generates override tags, but doesn't include e.g., deprecated which comes from the spec.
+    const tags = renderOverride.completeTagsFor(id);
     const channel = tags.find(({ name }) => name === 'chrome-channel')?.value;
-    const deprecated = tags.find(({ name }) => name === 'deprecated') !== undefined;
 
     const o = {};
     if (channel) {
       o.channel = channel;
     }
-    if (deprecated) {
-      o.deprecated = deprecated;
+    if (spec.deprecated) {
+      o.deprecated = true;
     }
 
-    return [symbol, o];
+    return [id, o];
   }));
 
   process.stdout.write(JSON.stringify(out, undefined, 2));
