@@ -200,11 +200,8 @@ export class RenderOverride {
       // This is a special type of event that's found in `webRequest`. It actually allows additional
       // parameters in the addListner call. We have to create a new virtual type for it.
       if (extraParameters?.length) {
-        if (!event.name.startsWith('on')) {
-          throw new Error(`can't add extraParameters addListener for event that does not start with 'on': ${event.name}`);
-        }
 
-        // This monstrosity adds an object with `addListener` that accepts the same callback, _plus_
+        // This monstrosity adds an object with `addListener` that accepts the same callback _plus_
         // the extra parameters.
         const extraAddListenerObject = {
           type: 'object',
@@ -219,7 +216,7 @@ export class RenderOverride {
           },
         };
 
-        // This $ref matches the code in `preamble.d.ts`.
+        // This $ref matches the magic type in `preamble.d.ts`.
         additionalProperties[event.name] = {
           ...outer,
           $ref: 'InternalEventExtraParameters',
@@ -228,6 +225,7 @@ export class RenderOverride {
         continue;
       }
 
+      // Otherwise this is a normal event that references 'event.Event'.
       additionalProperties[event.name] = {
         ...outer,
         $ref: 'events.Event',

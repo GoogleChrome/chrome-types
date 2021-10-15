@@ -294,8 +294,11 @@ export class RenderContext {
           ...spec,
         };
         buf.append(this.renderComment(virtualSpec, id));
-  
-        const suffix = `: ${this.renderType(returnSpec, `${id}.${returnSpec.name}`)};`
+
+        if (returnSpec.name !== 'return') {
+          throw new Error(`expected return type to have name "return": ${JSON.stringify(returnSpec)}`);
+        }
+        const suffix = `: ${this.renderReturnType(returnSpec, `${id}.${returnSpec.name}`)};`
         buf.line(`${prefix}${effectiveName}(`);
   
         if (params.length === 0) {
@@ -326,6 +329,19 @@ export class RenderContext {
     }
 
     return buf;
+  }
+
+  /**
+   * As per {@link renderType}, but allows for the optional property via allowing `undefined`.
+   *
+   * @param {chromeTypes.TypeSpec} spec
+   * @param {string} id
+   */
+  renderReturnType(spec, id) {
+    if (!spec.optional) {
+      return this.renderType(spec, id);
+    }
+    return `${this.renderType(spec, id, true)} | undefined`;
   }
 
   /**
@@ -553,7 +569,7 @@ export class RenderContext {
       // We give this an internal ID of "return", which is a keyword, to match feature definitions
       // and availability version-over-version.
       const returns = spec.returns ?? { type: 'void' };
-      buf.append(` => ${this.renderType(returns, `${id}.return`)}`);
+      buf.append(` => ${this.renderReturnType(returns, `${id}.return`)}`);
       return buf.render();
     }
 
