@@ -133,7 +133,128 @@ export class RenderOverride {
    * @param {chromeTypes.TypeSpec} spec
    * @param {string} id
    */
+  rewriteEventsToProperties(spec, id) {
+    if (!spec.events?.length) {
+      return undefined;
+    }
+
+    /** @type {{[name: string]: chromeTypes.TypeSpec}} */
+    const additionalProperties = {};
+
+    for (const event of spec.events) {
+      const { returns, parameters, type, options, extraParameters, ...outer } = event;
+
+      // This is a declarative event listener. It does not take a callback.
+      if (options?.supportsListeners === false) {
+        if (!options.conditions?.length || !options.actions?.length) {
+          throw new Error(`invalid declarative event: ${JSON.stringify(event)}`);
+        }
+
+        // Look for the left part, e.g. "api:declarativeContent.onPageChanged" =>
+        // "declarativeContent". The strings we get from Chrome's source code start with this, even
+        // though it's redundant.
+        const namespaceName = namespaceNameFromId(id);
+        if (!namespaceName) {
+          throw new Error(`could not find left part: ${id}`);
+        }
+        /** @type {(s: string[]) => chromeTypes.TypeSpec[]} */
+        const toRef = (s) => {
+          return s.map((raw) => {
+            if (raw.startsWith(namespaceName + '.')) {
+              raw = raw.substr(namespaceName.length + 1);
+            }
+            return { $ref: raw };
+          });
+        };
+
+        // The template args are like "functionType", "conditions", "actions", so mark the function
+        // as "never" so addListener etc cannot be used here.
+        additionalProperties[event.name] = {
+          $ref: 'events.Event',
+          value: [
+            event.name,
+            { type: 'never' },
+            { choices: toRef(options.conditions) },
+            { choices: toRef(options.actions) },
+          ],
+        };
+        continue;
+      }
+
+      /** @type {chromeTypes.TypeSpec} */
+      const callbackType = {
+        type: 'function',
+      };
+      if (event.$ref) {
+        // This is a function which references another function. It only happens once and is
+        // invalid, so we rewrite it in typeOverride below.
+        callbackType.$ref = event.$ref;
+      }
+      if (returns) {
+        callbackType.returns = returns;
+      }
+      if (parameters) {
+        callbackType.parameters = parameters;
+      }
+
+      // This is a special type of event that's found in `webRequest`. It actually allows additional
+      // parameters in the addListner call. We have to create a new virtual type for it.
+      if (extraParameters?.length) {
+        if (!event.name.startsWith('on')) {
+          throw new Error(`can't add extraParameters addListener for event that does not start with 'on': ${event.name}`);
+        }
+
+        // This monstrosity adds an object with `addListener` that accepts the same callback, _plus_
+        // the extra parameters.
+        const extraAddListenerObject = {
+          type: 'object',
+          properties: {
+            'addListener': {
+              type: 'function',
+              parameters: [
+                { name: 'callback', ...callbackType },
+                ...extraParameters,
+              ],
+            },
+          },
+        };
+
+        // This $ref matches the code in `preamble.d.ts`.
+        additionalProperties[event.name] = {
+          ...outer,
+          $ref: 'InternalEventExtraParameters',
+          value: ['', extraAddListenerObject],
+        };
+        continue;
+      }
+
+      additionalProperties[event.name] = {
+        ...outer,
+        $ref: 'events.Event',
+        value: [event.name, callbackType],
+      };
+    }
+
+    // Remove events as they've been converted to props.
+    return {
+      ...spec,
+      events: undefined,
+      properties: { ...spec.properties, ...additionalProperties },
+    };
+  }
+
+  /**
+   * @param {chromeTypes.TypeSpec} spec
+   * @param {string} id
+   */
   typeOverride(spec, id) {
+
+    // Move values found in 'events' to properties, as they are really just instances of `event.Event`.
+    const maybeRewriteSpec = this.rewriteEventsToProperties(spec, id);
+    if (maybeRewriteSpec) {
+      // If this changed the spec, call us again, without the events list.
+      return this.typeOverride(maybeRewriteSpec, id) ?? maybeRewriteSpec;
+    }
 
     // Fix contextMenus not having the right OnClickData type, and it only being present in the
     // "contextMenusInternal" namespace.

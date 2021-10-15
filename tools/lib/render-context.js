@@ -180,6 +180,8 @@ export class RenderContext {
    * @param {string} id
    */
   renderObjectAsType(prop, id) {
+    prop = this.#override.typeOverride(prop, id) ?? prop;
+
     const name = last(id);
 
     const buf = new RenderBuffer();

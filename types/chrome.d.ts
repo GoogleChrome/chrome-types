@@ -151,7 +151,9 @@ export interface NamedTypeSpec extends TypeSpec {
  * Events are effectively functions plus options.
  */
 export interface EventSpec extends TypeSpec {
+  name: string;
   type?: 'function';
+  extraParameters?: TypeSpec[];
 
   options?: {
     unmanaged?: boolean;

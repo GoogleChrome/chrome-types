@@ -131,69 +131,6 @@ export class TraverseContext {
       out[id] = prop;
     });
 
-    this.forEach(source.events, id, (prop, id) => {
-      const eprop = /** @type {chromeTypes.EventSpec} */ (prop);
-      const { returns, parameters, type, options, ...outer } = eprop;
-
-      // This is a declarative event listener. It does not take a callback.
-      if (options?.supportsListeners === false) {
-        if (!options.conditions?.length || !options.actions?.length) {
-          throw new Error(`invalid declarative event: ${JSON.stringify(prop)}`);
-        }
-
-        // Look for the left part, e.g. "api:declarativeContent.onPageChanged" =>
-        // "declarativeContent". The strings we get from Chrome's source code start with this, even
-        // though it's redundant.
-        const namespaceName = namespaceNameFromId(id);
-        if (!namespaceName) {
-          throw new Error(`could not find left part: ${id}`);
-        }
-        /** @type {(s: string[]) => chromeTypes.TypeSpec[]} */
-        const toRef = (s) => {
-          return s.map((raw) => {
-            if (raw.startsWith(namespaceName + '.')) {
-              raw = raw.substr(namespaceName.length + 1);
-            }
-            return { $ref: raw };
-          });
-        };
-
-        // The template args are like "functionType", "conditions", "actions", so mark the function
-        // as "never" so addListener etc cannot be used here.
-        out[id] = {
-          $ref: 'events.Event',
-          value: [
-            last(id),
-            { type: 'never' },
-            { choices: toRef(options.conditions) },
-            { choices: toRef(options.actions) },
-          ],
-        };
-        return;
-      }
-
-      /** @type {chromeTypes.TypeSpec} */
-      const inner = {
-        type: 'function',
-      };
-      if (eprop.$ref) {
-        // This is invalid, but we rewrite it in typeOverride.
-        inner.$ref = eprop.$ref;
-      }
-      if (returns) {
-        inner.returns = returns;
-      }
-      if (parameters) {
-        inner.parameters = parameters;
-      }
-
-      out[id] = {
-        ...outer,
-        $ref: 'events.Event',
-        value: [last(id), inner],
-      };
-    });
-
     return out;
   }
 
