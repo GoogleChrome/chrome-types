@@ -135,6 +135,7 @@ export class TraverseContext {
       const eprop = /** @type {chromeTypes.EventSpec} */ (prop);
       const { returns, parameters, type, options, ...outer } = eprop;
 
+      // This is a declarative event listener. It does not take a callback.
       if (options?.supportsListeners === false) {
         if (!options.conditions?.length || !options.actions?.length) {
           throw new Error(`invalid declarative event: ${JSON.stringify(prop)}`);
@@ -157,11 +158,13 @@ export class TraverseContext {
           });
         };
 
+        // The template args are like "functionType", "conditions", "actions", so mark the function
+        // as "never" so addListener etc cannot be used here.
         out[id] = {
           $ref: 'events.Event',
           value: [
             last(id),
-            { type: 'void' },
+            { type: 'never' },
             { choices: toRef(options.conditions) },
             { choices: toRef(options.actions) },
           ],

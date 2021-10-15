@@ -571,6 +571,7 @@ export class RenderContext {
       case 'boolean':
       case 'string':
       case 'void':
+      case 'never':
       case 'undefined':
         return spec.type;
     }
