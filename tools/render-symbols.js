@@ -17,7 +17,8 @@
 
 
 /**
- * @fileoverview Renders symbol data.
+ * @fileoverview Renders symbol data for a specific Chrome APIs bundle. This is part of the process
+ * to generate version data over time.
  */
 
 
@@ -26,6 +27,7 @@ import * as chromeTypes from '../types/chrome.js';
 import mri from 'mri';
 import { RenderContext } from './lib/render-context.js';
 import { FeatureQueryAll, RenderOverride } from './override.js';
+import log from 'fancy-log';
 
 
 async function run() {
@@ -86,23 +88,31 @@ This is used internally to generate historic version data for Chrome's APIs.
     return 0;
   });
 
+  let deprecatedCount = 0;
+  let nonStableCount = 0;
+
   const out = Object.fromEntries(keys.map((id) => {
     const spec = /** @type {chromeTypes.TypeSpec} */ (symbols.get(id));
 
     // This generates override tags, but doesn't include e.g., deprecated which comes from the spec.
     const tags = renderOverride.completeTagsFor(id);
-    const channel = tags.find(({ name }) => name === 'chrome-channel')?.value;
+    const channel = /** @type {chromeTypes.Channel|undefined} */ (tags.find(({ name }) => name === 'chrome-channel')?.value);
 
+    /** @type {{channel?: chromeTypes.Channel, deprecated?: true}} */
     const o = {};
-    if (channel) {
+    if (channel && channel !== 'stable') {
       o.channel = channel;
+      ++nonStableCount;
     }
     if (spec.deprecated) {
       o.deprecated = true;
+      ++deprecatedCount;
     }
 
     return [id, o];
   }));
+
+  log.warn(`Found ${Object.keys(out).length} symbols, ${deprecatedCount} deprecated, ${nonStableCount} not stable`);
 
   process.stdout.write(JSON.stringify(out, undefined, 2));
 }
