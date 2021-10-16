@@ -25,6 +25,7 @@ import { promisify } from 'util';
 import * as childProcess from 'child_process';
 import semver from 'semver';
 import * as chromeTypes from '../../types/chrome.js';
+import fetch from 'node-fetch';
 
 
 const execFile = promisify(childProcess.execFile);
@@ -34,6 +35,9 @@ const tagPrefix = 'refs/tags/';
 
 
 const repoUrl = 'https://chromium.googlesource.com/chromium/src.git';
+
+
+const omahaProxyUrl = 'https://omahaproxy.appspot.com/all.json';
 
 
 /**
@@ -128,4 +132,30 @@ export async function chromeVersions() {
     head: headRevision,
     releases: releaseMajorVersions,
   };
+}
+
+
+/**
+ * Fetches and finds the current stable version of Chrome via omahaproxy.
+ *
+ * @return {Promise<number>}
+ */
+export async function chromePublishedStable() {
+  const r = await fetch(omahaProxyUrl);
+  const data = /** @type {chromeTypes.OmahaProxyData} */ (await r.json());
+
+  for (const row of data) {
+    for (const version of row.versions) {
+      if (version.channel !== 'stable') {
+        continue;
+      }
+
+      const numericRelease = +version.version.split('.')[0];
+      if (numericRelease) {
+        return numericRelease;
+      }
+    }
+  }
+
+  throw new Error(`could not find stable Chrome release`);
 }

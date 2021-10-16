@@ -190,3 +190,13 @@ export type SpecCallback = (spec: TypeSpec, id: string) => void;
 
 export type Tag = { name: string, value?: string };
 
+
+export type OmahaProxyData = {
+  os: string,
+  versions: {
+    channel: Channel,
+    version: string,
+    current_reldate: string,
+    branch_commit: string,
+  }[],
+}[];

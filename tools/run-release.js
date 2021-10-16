@@ -4,6 +4,7 @@ import run from './lib/spawn-helper.js';
 import * as path from 'path';
 import * as fs from 'fs';
 import log from 'fancy-log';
+import { chromePublishedStable } from './lib/chrome-versions.js';
 
 
 const { pathname: rootDir } = new URL('../', import.meta.url);
@@ -28,6 +29,10 @@ function typescriptCheck(p) {
   run(['./node_modules/.bin/tsc', p], { stdoutInherit: true, cwd: rootDir });
 }
 
+
+log('Finding Chrome stable release...');
+const stableChromeRelease = await chromePublishedStable();
+log('Chrome stable is:', stableChromeRelease);
 
 log('Fetching Chrome payload...');
 const chromePayload = toolInvoke('prepare.js');
