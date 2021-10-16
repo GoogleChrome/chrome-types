@@ -116,7 +116,7 @@ export class RenderOverride {
   objectTemplatesFor(id) {
     switch (id) {
       case 'api:events.Event':
-        return 'H, C = void, A = void';
+        return 'H extends (...args: any) => void, C = void, A = void';
 
       case 'api:events.Rule':
         return 'C = any, A = any';
@@ -233,34 +233,26 @@ export class RenderOverride {
         addListenerExtraParameters.push(...extraParameters);
       }
 
-      if (filters && extraParameters) {
-        console.warn(spec);
-        throw 'lol';
-      }
-
-      // If we have extra parameters, then we actually inherit from `InternalEventExtraParameters`.
-      // This creates our custom `addListener` type.
+      // If we have extra parameters, then we actually inherit from `CustomChromeEvent` passing
+      // the custom addListener function as an inline type.
       if (addListenerExtraParameters.length) {
-        // This monstrosity adds an object with `addListener` that accepts the same callback _plus_
-        // the extra parameters,
-        const extraAddListenerObject = {
-          type: 'object',
-          properties: {
-            'addListener': {
-              type: 'function',
-              parameters: [
-                { name: 'callback', ...callbackType },
-                ...addListenerExtraParameters,
-              ],
-            },
-          },
+
+        // TODO(samthor): Should we make all events like this, for consistency?
+
+        /** @type {chromeTypes.TypeSpec} */
+        const addListenerFunction = {
+          type: 'function',
+          parameters: [
+            { name: 'callback', ...callbackType },
+            ...addListenerExtraParameters,
+          ],
         };
 
         // This $ref matches the magic type in `preamble.d.ts`.
         additionalProperties[event.name] = {
           ...outer,
-          $ref: 'InternalEventExtraParameters',
-          value: ['', extraAddListenerObject],
+          $ref: 'CustomChromeEvent',
+          value: ['', addListenerFunction],
         };
         continue;
       }
