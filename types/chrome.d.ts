@@ -154,6 +154,7 @@ export interface EventSpec extends TypeSpec {
   name: string;
   type?: 'function';
   extraParameters?: TypeSpec[];
+  filters?: TypeSpec[];
 
   options?: {
     unmanaged?: boolean;

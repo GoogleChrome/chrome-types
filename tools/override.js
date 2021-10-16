@@ -142,7 +142,7 @@ export class RenderOverride {
     const additionalProperties = {};
 
     for (const event of spec.events) {
-      const { returns, parameters, type, options, extraParameters, ...outer } = event;
+      const { returns, parameters, type, options, extraParameters, filters, ...outer } = event;
 
       // This is a declarative event listener. It does not take a callback.
       if (options?.supportsListeners === false) {
@@ -181,6 +181,7 @@ export class RenderOverride {
         continue;
       }
 
+      // Set up the basic callback type. This is the same regardless of extraParameters of filters.
       /** @type {chromeTypes.TypeSpec} */
       const callbackType = {
         type: 'function',
@@ -197,12 +198,51 @@ export class RenderOverride {
         callbackType.parameters = parameters;
       }
 
+      // There are two ways that Chrome's events can actually modify the simple `addListener`
+      // function.
+      //   - If they define `filters`, this is taken as an extra dictionary argument.
+      //   - If they define `extraParameters`, these are appended to `addListener`.
+      // (As of Oct 2021, no events have both, but we just append them in order if seen.)
+      //
+      // If we see any values in this array, we construct a special override type which accepts
+      // additional parameters on `addListener`, but not on the other methods (e.g., `hasListener`
+      // or `removeListener` work the same).
+      /** @type {chromeTypes.TypeSpec[]} */
+      const addListenerExtraParameters = [];
+
+      // Check for filters and add them.
+      if (filters?.length) {
+        // Confusingly, filters is an array, but is accepted as a dictionary (like properties).
+
+        /** @type {chromeTypes.TypeSpec} */
+        const filterParam = {
+          name: 'filters',
+          type: 'object',
+          properties: Object.fromEntries(filters.map((filter) => {
+            return [filter.name, filter];
+          })),
+          optional: true,
+        };
+        addListenerExtraParameters.push(filterParam);
+      }
+
       // This is a special type of event that's found in `webRequest`. It actually allows additional
       // parameters in the addListner call. We have to create a new virtual type for it.
+      // It tends to have filter-like things in the source, but `webRequest` predates filters.
       if (extraParameters?.length) {
+        addListenerExtraParameters.push(...extraParameters);
+      }
 
+      if (filters && extraParameters) {
+        console.warn(spec);
+        throw 'lol';
+      }
+
+      // If we have extra parameters, then we actually inherit from `InternalEventExtraParameters`.
+      // This creates our custom `addListener` type.
+      if (addListenerExtraParameters.length) {
         // This monstrosity adds an object with `addListener` that accepts the same callback _plus_
-        // the extra parameters.
+        // the extra parameters,
         const extraAddListenerObject = {
           type: 'object',
           properties: {
@@ -210,7 +250,7 @@ export class RenderOverride {
               type: 'function',
               parameters: [
                 { name: 'callback', ...callbackType },
-                ...extraParameters,
+                ...addListenerExtraParameters,
               ],
             },
           },
