@@ -16,13 +16,20 @@
 
 
 import * as childProcess from 'child_process';
+import * as path from 'path';
+
+
+/**
+ * The root directory of the types project.
+ */
+export const { pathname: rootDir } = new URL('../../', import.meta.url);
 
 
 /**
  * @param {string[]} parts
  * @param {{cwd?: string, input?: Buffer, stdoutInherit?: true}} options
  */
-export default function run(parts, { cwd, input, stdoutInherit } = {}) {
+export function run(parts, { cwd, input, stdoutInherit } = {}) {
   /** @type {childProcess.SpawnSyncOptionsWithBufferEncoding} */
   const options = {
     stdio: ['pipe', stdoutInherit ? 'inherit' : 'pipe', 'inherit'],
@@ -45,4 +52,16 @@ export default function run(parts, { cwd, input, stdoutInherit } = {}) {
     throw new Error(`code: ${status}`);
   }
   return stdout;
+}
+
+
+
+/**
+ * @param {string} tool
+ * @param {{input?: Buffer, args?: string[]}} options
+ * @return {Buffer}
+ */
+export function toolInvoke(tool, { input, args } = {}) {
+  const p = path.join('tools', tool);
+  return run([p, ...args ?? []], { input, cwd: rootDir });
 }

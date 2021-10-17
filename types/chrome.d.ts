@@ -200,3 +200,6 @@ export type OmahaProxyData = {
     branch_commit: string,
   }[],
 }[];
+
+
+export type ReleaseSymbolsData = {[id: string]: { deprecated?: true }};

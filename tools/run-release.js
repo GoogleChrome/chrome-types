@@ -1,25 +1,13 @@
 #!/usr/bin/env node
 
-import run from './lib/spawn-helper.js';
+import { run, toolInvoke, rootDir } from './lib/spawn-helper.js';
 import * as path from 'path';
 import * as fs from 'fs';
 import log from 'fancy-log';
 import { chromePublishedStable } from './lib/chrome-versions.js';
 
 
-const { pathname: rootDir } = new URL('../', import.meta.url);
 const distDir = path.join(rootDir, 'dist');
-
-
-/**
- * @param {string} tool
- * @param {{input?: Buffer, args?: string[]}} options
- * @return {Buffer}
- */
-function toolInvoke(tool, { input, args } = {}) {
-  const p = path.join('tools', tool);
-  return run([p, ...args ?? []], { input, cwd: rootDir });
-}
 
 
 /**

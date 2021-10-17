@@ -88,32 +88,34 @@ This is used internally to generate historic version data for Chrome's APIs.
     return 0;
   });
 
+  /** @type {chromeTypes.ReleaseSymbolsData} */
+  const out = {};
+
   let deprecatedCount = 0;
-  let nonStableCount = 0;
+  let skipCount = 0;
 
-  const out = Object.fromEntries(keys.map((id) => {
-    const spec = /** @type {chromeTypes.TypeSpec} */ (symbols.get(id));
-
+  for (const [id, spec] of symbols) {
     // This generates override tags, but doesn't include e.g., deprecated which comes from the spec.
     const tags = renderOverride.completeTagsFor(id);
     const channel = /** @type {chromeTypes.Channel|undefined} */ (tags.find(({ name }) => name === 'chrome-channel')?.value);
 
-    /** @type {{channel?: chromeTypes.Channel, deprecated?: true}} */
-    const o = {};
-    if (channel && channel !== 'stable') {
-      o.channel = channel;
-      ++nonStableCount;
+    // Only add a symbol if it's in the stable channel, so we can look at historic changes. Only
+    // mark deprecated, so we can determine when that happened.
+    // We don't include beta/dev etc symbols: that data is already obvious when generating the
+    // definitions file.
+    if (!channel || channel === 'stable') {
+      out[id] = {};
+
+      if (spec.deprecated) {
+        out[id].deprecated = true;
+        ++deprecatedCount;
+      }
+    } else {
+      ++skipCount;
     }
-    if (spec.deprecated) {
-      o.deprecated = true;
-      ++deprecatedCount;
-    }
+  }
 
-    return [id, o];
-  }));
-
-  log.warn(`Found ${Object.keys(out).length} symbols, ${deprecatedCount} deprecated, ${nonStableCount} not stable`);
-
+  log.warn(`Found ${Object.keys(out).length} stable symbols (${deprecatedCount} deprecated, ${skipCount} skipped) at ${o.definitionsRevision}`);
   process.stdout.write(JSON.stringify(out, undefined, 2));
 }
 
