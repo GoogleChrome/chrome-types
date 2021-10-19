@@ -63,16 +63,19 @@ export class RenderOverride {
   #commentRewriter;
   #fq;
   #api;
+  #history;
 
   /**
    * @param {{[name: string]: chromeTypes.NamespaceSpec}} api
    * @param {FeatureQuery} fq
+   * @param {chromeTypes.HistoricSymbolsPayload?} history
    */
-  constructor(api, fq) {
+  constructor(api, fq, history = null) {
     const allNamespaceNames = Object.keys(api);
     this.#commentRewriter = buildNamespaceAwareMarkdownRewrite(allNamespaceNames);
     this.#fq = fq;
     this.#api = api;
+    this.#history = history;
   }
 
   /**
@@ -101,10 +104,6 @@ export class RenderOverride {
       case 'api:contextMenus.OnClickData':
       case 'api:notifications.NotificationBitmap':
         // In old versions of Chrome, this is incorrectly marked nodoc.
-        return true;
-
-      case 'api:declarativeContent.ShowAction':
-        // This is incorrectly referenced even though it's marked nodoc.
         return true;
     }
     return !spec.nodoc;
@@ -394,9 +393,10 @@ export class RenderOverride {
    * Generates all extra tags for this node, which may be filtered if they match the tags of our
    * parent. These may include duplicate tags.
    *
+   * @param {chromeTypes.TypeSpec} spec
    * @param {string} id
    */
-  completeTagsFor(id) {
+  completeTagsFor(spec, id) {
     /** @type {{name: string, value?: string, keep?: true}[]} */
     const tags = [];
 
@@ -481,6 +481,29 @@ export class RenderOverride {
       tags.push({ name: 'chrome-platform', value });
     });
 
+    // Find history information if available.
+    if (this.#history && bestChannel === 'stable') {
+      const self = this.#history.symbols[id];
+      if (!self || self.high < this.#history.high) {
+        // This happens if the symbol is brand new but hasn't got history data yet, likely before
+        // this Chrome is actually released.
+      } else {
+
+        console.warn('found symbol', id, self);
+
+        if (self.deprecated && spec.deprecated) {
+          const value = `Chrome ${self.deprecated}`;
+          tags.push({ name: 'chrome-deprecated-since', value });
+        }
+
+        if (self.low) {
+          const value = `Chrome ${self.low}`;
+          tags.unshift({ name: 'since', value })
+        }
+
+      }
+    }
+
     // Ensure we only return unique tags.
     /** @type {Set<string>} */
     const uniqueSet = new Set();
@@ -499,11 +522,11 @@ export class RenderOverride {
    * @param {string} id
    */
   tagsFor(spec, id) {
-    let tags = this.completeTagsFor(id);
+    let tags = this.completeTagsFor(spec, id);
 
     const parent = parentId(id);
     if (parent) {
-      const parentTags = this.completeTagsFor(parent);
+      const parentTags = this.completeTagsFor(spec, parent);
       tags = tags.filter((tag) => {
         if (tag.keep) {
           return true;  // don't filter this one

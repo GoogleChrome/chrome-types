@@ -17,8 +17,10 @@
 
 
 /**
- * @fileoverview Renders symbol data for a specific Chrome APIs bundle. This is part of the process
- * to generate version data over time.
+ * @fileoverview Renders symbol data for a specific Chrome APIs bundle generated with the "prepare"
+ * script. This is used as part of the process to generate version data over time.
+ *
+ * TODO: this is only used by "prepare-history.js", perhaps it could be merged.
  */
 
 
@@ -96,7 +98,7 @@ This is used internally to generate historic version data for Chrome's APIs.
 
   for (const [id, spec] of symbols) {
     // This generates override tags, but doesn't include e.g., deprecated which comes from the spec.
-    const tags = renderOverride.completeTagsFor(id);
+    const tags = renderOverride.completeTagsFor(spec, id);
     const channel = /** @type {chromeTypes.Channel|undefined} */ (tags.find(({ name }) => name === 'chrome-channel')?.value);
 
     // Only add a symbol if it's in the stable channel, so we can look at historic changes. Only
@@ -120,4 +122,4 @@ This is used internally to generate historic version data for Chrome's APIs.
 }
 
 
-run();
+await run();

@@ -18,19 +18,46 @@
 import { promisify } from 'util';
 import * as childProcess from 'child_process';
 import JSON5 from 'json5';
+import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
+import { readFromCache, writeToCache } from './cache-helper.js';
 
 
 const execFile = promisify(childProcess.execFile);
 const commandPath = 'tools/json_schema_compiler/idl_schema.py';
 
 
+const idlCacheDays = 12;
+const idlCacheExpiry = idlCacheDays * 24 * 60 * 60 * 1000;
+
+
 /**
  * @param {string} root
  * @param {string} filename
- * @return {Promise<Object>}
+ * @return {Promise<{cache: boolean, o: Object}>}
  */
 export async function convertFromIdl(root, filename) {
   const args = [commandPath, filename];
+
+  // Find the MD5 of the input IDL to match it in cache.
+  const p = path.join(root, filename);
+  const bytes = fs.readFileSync(p);
+  const md5 = crypto.createHash('md5').update(bytes).digest('hex');
+  const cacheKey = `idl-convert-${md5}.json`;
+
+  // This has a huge (week+) long expiry date for the same bytes. This allows the parser/generator
+  // to change over time if needed.
+  // Most IDL files don't change per-release so this saves us CPU time.
+  const existingConvert = readFromCache(cacheKey, idlCacheExpiry);
+  if (existingConvert) {
+    try {
+      const o = JSON5.parse(existingConvert.toString('utf-8'));
+      return {o, cache: true};
+    } catch {
+      // ignore
+    }
+  }
 
   // Try a few Python instances in case there's some problem. Prefer python3 if possible.
   const pythonBinary = ['python3', 'python', 'python2.7'];
@@ -42,7 +69,9 @@ export async function convertFromIdl(root, filename) {
       // Ensure that we don't have any invalid JSON here by converting back to an object.
       const o = JSON5.parse(stdout);
 
-      return o;
+      writeToCache(cacheKey, stdout);
+
+      return {o, cache: false};
     } catch (e) {
       if (!(e instanceof Error)) {
         e = new Error(`unable to run ${binary}: ${e}`);

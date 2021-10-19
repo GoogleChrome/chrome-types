@@ -16,6 +16,12 @@
  */
 
 
+/**
+ * @fileoverview Prepares a bundle representing Chrome's extensions APIs at a specific release.
+ * By default this operates on the version at head, but can be invoked with a release number.
+ */
+
+
 import { chromeVersions } from './lib/chrome-versions.js';
 import { fetchAllTo } from './lib/chrome-source.js';
 import chalk from 'chalk';
@@ -97,8 +103,13 @@ async function prepareInTemp({ workPath, headRevision, definitionsRevision, cpuL
     if (ext === '.idl') {
       await conversionLimit.acquire();
       try {
-        o = await convertFromIdl(workPath, cand);
-        log.warn(`Converted ${chalk.green(cand)}`);
+        let cache;
+        ({o, cache} = await convertFromIdl(workPath, cand));
+        if (cache) {
+          log.warn(`Read cached conversion ${chalk.green(cand)}`);
+        } else {
+          log.warn(`Converted ${chalk.green(cand)}`);
+        }
       } finally {
         conversionLimit.release();
       }
@@ -235,4 +246,5 @@ Options:
   process.stdout.write(render);
 }
 
-prepare();
+
+await prepare();
