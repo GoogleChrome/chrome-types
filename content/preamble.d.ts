@@ -1,3 +1,6 @@
+// Force this to be a module.
+export {};
+
 // These are stubs for DOM APIs not nessecarily available in TS' defaults.
 interface Entry {}
 interface FileEntry extends Entry {}

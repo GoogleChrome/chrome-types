@@ -20,6 +20,7 @@ const keywords = [
   'delete',
   'import',
   'export',
+  'eval',  // disallowed in strict mode
   'void',
   'function',
   'switch',

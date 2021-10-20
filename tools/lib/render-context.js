@@ -321,6 +321,11 @@ export class RenderContext {
 
     // Iterate through all parameters and return values.
     if (this.#skipCallbackCount === 0) {
+
+      // Announce the function itself.
+      this.#announce(spec, id);
+
+      // Announce the aggregate of all parameters.
       for (const param of allParams.values()) {
         const childId = `${id}.${param.name}`;
         this.renderType(param, childId);

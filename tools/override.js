@@ -180,7 +180,7 @@ export class RenderOverride {
         continue;
       }
 
-      // Set up the basic callback type. This is the same regardless of extraParameters of filters.
+      // Set up the basic callback type. This is the same regardless of extraParameters or filters.
       /** @type {chromeTypes.TypeSpec} */
       const callbackType = {
         type: 'function',
@@ -481,15 +481,22 @@ export class RenderOverride {
       tags.push({ name: 'chrome-platform', value });
     });
 
-    // Find history information if available.
+    // Find and render history information if available.
     if (this.#history && bestChannel === 'stable') {
       const self = this.#history.symbols[id];
-      if (!self || self.high < this.#history.high) {
+      if (!self) {
         // This happens if the symbol is brand new but hasn't got history data yet, likely before
         // this Chrome is actually released.
-      } else {
 
-        console.warn('found symbol', id, self);
+        tags.push({ name: 'since', value: 'Pending' });
+
+      } else if (self.high < this.#history.high) {
+
+        // This symbol is missing?
+        tags.push({ name: 'since', value: `Missing ${self.high} vs ${this.#history.high}` });
+
+      } else {
+        // We hit a known symbol!
 
         if (self.deprecated && spec.deprecated) {
           const value = `Chrome ${self.deprecated}`;

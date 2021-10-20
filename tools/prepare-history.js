@@ -32,7 +32,7 @@ import getStdin from 'get-stdin';
 
 
 const defualtLowVersion = 42;
-const expectedRevision = 3;
+const expectedRevision = 4;
 
 
 async function run() {
@@ -75,6 +75,8 @@ Options:
       outputLowVersion = o.low;  // we didn't actually change low version
 
       Object.assign(allSymbols, o.symbols);
+    } else {
+      log.warn(`Found old history revision, re-running...`);
     }
   }
 

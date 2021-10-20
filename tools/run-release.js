@@ -54,7 +54,7 @@ typescriptCheck(indexTypesFile);
 
 
 log('Building types for all...');
-const allTypesContent = toolInvoke('render-tsd.js', { input: chromePayload, args: ['-a'] });
+const allTypesContent = toolInvoke('render-tsd.js', { input: chromePayload, args: ['-a', '-s', '.cache/history.json'] });
 const allTypesFile = path.join(distDir, '_all.d.ts');
 fs.writeFileSync(allTypesFile, allTypesContent);
 typescriptCheck(allTypesFile);
