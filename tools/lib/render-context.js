@@ -288,10 +288,11 @@ export class RenderContext {
         buf.line();
   
         // Limit the comments here to the parameters of this specific expansion.
+        /** @type {chromeTypes.TypeSpec} */
         const virtualSpec = {
-          paramaters: params,
-          returns: returnSpec,
           ...spec,
+          parameters: params,
+          returns: returnSpec,
         };
         buf.append(this.renderComment(virtualSpec, id));
 
@@ -308,6 +309,26 @@ export class RenderContext {
   
         buf.start('');
         this.#t.forEach(params, id, (param, childId) => {
+
+          // If this parameter happens to be a function, we need to inline the "@param"
+          // annotations here to keep TypeDoc happy.
+          // (It's not clear this is fully valid TS.)
+          if (param.parameters) {
+            const comment = this.renderComment({
+              parameters: param.parameters,
+            }, childId);
+            if (!comment?.isEmpty) {
+              buf.append(comment);
+            }
+
+            // FIXME: We could remove the description from the inline function below
+            // but there's no real reason aside reducing redundancy.
+            // param.parameters = param.parameters.map((param) => {
+            //   const {description, ...rest} = param;
+            //   return rest;
+            // });
+          }
+
           const name = last(childId);
           const effectiveName = isValidToken(name) ? name : `_${name}`;
           const opt = param.optional ? '?' : '';
