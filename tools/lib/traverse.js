@@ -168,6 +168,16 @@ export class TraverseContext {
       };
     }
 
+    // We convert the "returns_async" field to a callback (it has all the same values).
+    // Force it to be optional: by definition if it's omitted then we'll have a Promise-returning
+    // version. This isn't done correctly in the source.
+    /** @type {chromeTypes.TypeSpec} */
+    const callbackParameter = {
+      ...returns_async,
+      type: 'function',
+      optional: true,
+    };
+
     return {
       withPromise: {
         ...clone,
@@ -181,7 +191,7 @@ export class TraverseContext {
       },
       withCallback: {
         ...clone,
-        parameters: [...spec.parameters ?? [], returns_async],
+        parameters: [...spec.parameters ?? [], callbackParameter],
       },
     };
   }
