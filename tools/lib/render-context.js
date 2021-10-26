@@ -144,7 +144,7 @@ export class RenderContext {
       buf.line();
       buf.append(this.renderComment(spec, id));
 
-      if (spec.type === 'object') {
+      if (spec.type === 'object' && !spec.isInstanceOf) {
         // This is an interface.
         buf.line('export ')
         buf.append(this.renderObjectAsType(spec, id));
