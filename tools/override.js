@@ -275,6 +275,7 @@ export class RenderOverride {
   /**
    * @param {chromeTypes.TypeSpec} spec
    * @param {string} id
+   * @return {chromeTypes.TypeSpec|chromeTypes.NamespaceSpec|undefined}
    */
   typeOverride(spec, id) {
 
@@ -304,14 +305,18 @@ export class RenderOverride {
 
     // Fix contextMenus.onClicked incorrectly $ref-ing another function.
     if (id === 'api:contextMenus.onClicked') {
-      if (!spec.$ref) {
+      if (!Array.isArray(spec.value) || !spec.value[1]?.$ref) {
         return;
       }
-      const { $ref: _$ref, ...clone } = spec;
-      clone.parameters = [
-        { $ref: 'OnClickData', name: 'info' },
-        { $ref: 'tabs.Tab', name: 'tab' },
-      ];
+      const { ...clone } = spec;
+      clone.value = [...spec.value];
+      clone.value[1] = {
+        type: 'function',
+        parameters: [
+          { $ref: 'OnClickData', name: 'info' },
+          { $ref: 'tabs.Tab', name: 'tab' },
+        ],
+      }
       return clone;
     }
 
