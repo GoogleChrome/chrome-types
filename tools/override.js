@@ -25,7 +25,7 @@ import * as overrideTypes from '../types/override.js';
 import { mostReleasedChannel } from './lib/channel.js';
 import { buildNamespaceAwareMarkdownRewrite } from './lib/comment.js';
 import { FeatureQuery } from './lib/feature-query.js';
-import { namespaceNameFromId, parentId } from './lib/traverse.js';
+import { last, namespaceNameFromId, parentId } from './lib/traverse.js';
 
 
 export class FeatureQueryAll extends FeatureQuery {
@@ -395,6 +395,21 @@ export class RenderOverride {
   }
 
   /**
+   * @param {string} id
+   * @return {chromeTypes.Channel}
+   */
+  bestChannelFor(id) {
+    /** @type {chromeTypes.Channel | undefined} */
+    let bestChannel = undefined;
+
+    this.#fq.checkFeature(id, (f, otherId) => {
+      bestChannel = mostReleasedChannel(bestChannel, f.channel);
+    });
+
+    return bestChannel ?? 'stable';
+  }
+
+  /**
    * Generates all extra tags for this node, which may be filtered if they match the tags of our
    * parent. These may include duplicate tags.
    *
@@ -404,9 +419,6 @@ export class RenderOverride {
   completeTagsFor(spec, id) {
     /** @type {{name: string, value?: string, keep?: true}[]} */
     const tags = [];
-
-    /** @type {chromeTypes.Channel | undefined} */
-    let bestChannel = undefined;
 
     /** @type {boolean} */
     let disallowForServiceWorkers = false;
@@ -438,7 +450,6 @@ export class RenderOverride {
         tags.push({ name: 'chrome-manifest', value });
       }
 
-      bestChannel = mostReleasedChannel(bestChannel, f.channel);
       disallowForServiceWorkers = disallowForServiceWorkers || (f.disallow_for_service_workers ?? false);
 
       // nb. In practice we see only min or max. (min for MV3+, max for MV2)
@@ -453,7 +464,7 @@ export class RenderOverride {
       }
     });
 
-    bestChannel = bestChannel ?? 'stable';
+    const bestChannel = this.bestChannelFor(id);
     if (bestChannel === 'stable') {
       // Ignore, implied
     } else if (bestChannel === 'beta') {
@@ -487,32 +498,13 @@ export class RenderOverride {
     });
 
     // Find and render history information if available.
-    if (this.#history && bestChannel === 'stable') {
-      const self = this.#history.symbols[id];
-      if (!self) {
-        // This happens if the symbol is brand new but hasn't got history data yet, likely before
-        // this Chrome is actually released.
-
-        tags.push({ name: 'since', value: 'Pending' });
-
-      } else if (self.high < this.#history.high) {
-
-        // This symbol is missing?
-        tags.push({ name: 'since', value: `Missing ${self.high} vs ${this.#history.high}` });
-
-      } else {
-        // We hit a known symbol!
-
-        if (self.deprecated && spec.deprecated) {
-          const value = `Chrome ${self.deprecated}`;
-          tags.push({ name: 'chrome-deprecated-since', value });
-        }
-
-        if (self.low) {
-          const value = `Chrome ${self.low}`;
-          tags.unshift({ name: 'since', value })
-        }
-
+    if (bestChannel === 'stable') {
+      const sinceText = this.sinceTextFor(spec, id);
+      if (sinceText.since) {
+        tags.unshift({ name: 'since', value: sinceText.since });
+      }
+      if (sinceText.deprecatedSince) {
+        tags.push({ name: 'chrome-deprecated-since', value: sinceText.deprecatedSince });
       }
     }
 
@@ -527,6 +519,86 @@ export class RenderOverride {
       uniqueSet.add(key);
       return true;
     });
+  }
+
+  /**
+   * @param {chromeTypes.TypeSpec} methodSpec
+   * @param {chromeTypes.TypeSpec} spec
+   * @param {string} id
+   */
+  extraTagsForParam(methodSpec, spec, id) {
+    const bestChannel = this.bestChannelFor(id);
+    if (bestChannel !== 'stable') {
+      return;
+    }
+
+    /** @type {chromeTypes.Tag[]} */
+    const tags = [];
+
+    // Grab data for our parent (the method) and don't display it if it's the same.
+    const sinceText = this.sinceTextFor(spec, id);
+    const methodSinceText = this.sinceTextFor(methodSpec, parentId(id));
+
+    const prefix = id.endsWith('.return') ? 'chrome-returns' : 'chrome-param';
+    const paramPrefix = id.endsWith('.return') ? '' : last(id) + ' ';
+
+    if (sinceText.since && sinceText.since !== methodSinceText.since) {
+      tags.push({ name: prefix + '-since', value: paramPrefix + sinceText.since });
+    }
+    if (sinceText.deprecatedSince && sinceText.deprecatedSince !== methodSinceText.deprecatedSince) {
+      tags.push({ name: prefix + '-deprecated-since', value: paramPrefix + sinceText.since });
+    }
+    if (spec.deprecated && !methodSpec.deprecated) {
+      tags.push({ name: prefix + '-deprecated', value: paramPrefix.trim() });
+    }
+
+    return tags;
+  }
+
+  /**
+   * Returns friendly information about what version this is available from, and what version
+   * it was deprecated from. Both are optional.
+   *
+   * @param {chromeTypes.TypeSpec} spec
+   * @param {string} id
+   * @return {{since?: string, deprecatedSince?: string}}
+   */
+  sinceTextFor(spec, id) {
+    if (!this.#history) {
+      return {};
+    }
+
+    const self = this.#history.symbols[id];
+    if (!self) {
+      // This happens if the symbol is brand new but hasn't got history data yet, likely before
+      // this Chrome is actually released.
+      return { since: 'Pending' };
+
+    } else if (self.high < this.#history.high) {
+      // This symbol is missing?
+      // TODO: This should never happen.
+      return { since: `Missing ${self.high} vs ${this.#history.high}` };
+
+    }
+
+    const out = {};
+
+    // We hit a known symbol!
+    if (spec.deprecated) {
+      if (self.deprecated) {
+        out.deprecatedSince = `Chrome ${self.deprecated}`;
+      } else {
+        // We've been marked as @deprecated in the source but it hasn't appeared in a stable
+        // release of Chrome yet.
+        out.deprecatedSince = 'Pending';
+      }
+    }
+
+    if (self.low) {
+      out.since = `Chrome ${self.low}`;
+    }
+
+    return out;
   }
 
   /**

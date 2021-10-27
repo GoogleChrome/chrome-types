@@ -195,9 +195,9 @@ export class RenderContext {
     if (instanceTypeProp) {
       mode = 'class';
       if (instanceTypeProp.nodoc) {
-        // TODO: will this work with shaped objects?
         buf.line(`constructor(arg: ${name});`);
       } else {
+        // `instanceType` is visible, but we don't need it to construct this object, so Omit it.
         buf.line(`constructor(arg: Omit<${name}, 'instanceType'>);`);
       }
     }
@@ -207,6 +207,13 @@ export class RenderContext {
     const properties = this.#t.propertiesFor(prop, id);
     for (const childId in properties) {
       const spec = properties[childId];
+
+      // Some functions show up as properties, but they're really functions.
+      // There's no way to make these optional, so only include non-optional.
+      if (!spec.optional && spec.type === 'function') {
+        buf.append(this.renderTopFunction(spec, childId));
+        continue;
+      }
 
       const commentBuffer = this.renderComment(spec, childId);
       if (!commentBuffer?.isEmpty) {
@@ -340,22 +347,18 @@ export class RenderContext {
       }
     });
 
-    // Iterate through all parameters and return values.
-    if (this.#skipCallbackCount === 0) {
+    // Announce the function itself.
+    this.#announce(spec, id);
 
-      // Announce the function itself.
-      this.#announce(spec, id);
+    // Announce the aggregate of all parameters.
+    for (const param of allParams.values()) {
+      const childId = `${id}.${param.name}`;
+      this.renderType(param, childId);
 
-      // Announce the aggregate of all parameters.
-      for (const param of allParams.values()) {
-        const childId = `${id}.${param.name}`;
-        this.renderType(param, childId);
-
-        // TODO(samthor): this is a bit ugly, we announce in odd places.
-        // We need to announce these because we only normally announce when rendering a comment,
-        // and params/return values aren't _specifically_ commented, only as part of their parent.
-        this.#announce(param, childId);
-      }
+      // TODO(samthor): this is a bit ugly, we announce in odd places.
+      // We need to announce these because we only normally announce when rendering a comment,
+      // and params/return values aren't _specifically_ commented, only as part of their parent.
+      this.#announce(param, childId);
     }
 
     return buf;
@@ -363,6 +366,8 @@ export class RenderContext {
 
   /**
    * As per {@link renderType}, but allows for the optional property via allowing `undefined`.
+   *
+   * Doesn't announce this symbol.
    *
    * @param {chromeTypes.TypeSpec} spec
    * @param {string} id
@@ -600,6 +605,13 @@ export class RenderContext {
       // and availability version-over-version.
       const returns = spec.returns ?? { type: 'void' };
       buf.append(` => ${this.renderReturnType(returns, `${id}.return`)}`);
+
+      // HACK: The comment being rendered _for us_ (by our caller) won't announce the return type.
+      // Do it here.
+      if (returns.type !== 'void') {
+        this.#announce(returns, `${id}.return`);
+      }
+
       return buf.render();
     }
 
@@ -643,11 +655,19 @@ export class RenderContext {
         value += ` ${description}`;
       }
       tags.push({ name: 'param', value });
+
+      const tagsForParam = this.#override.extraTagsForParam(spec, param, childId);
+      tags.unshift(...tagsForParam ?? []);
     });
 
-    if (spec.returns?.description) {
-      const value = sanitizeCommentData(spec.returns.description);
-      tags.push({ name: 'returns', value });
+    if (spec.returns && spec.returns?.type !== 'void') {
+      if (spec.returns?.description) {
+        const value = sanitizeCommentData(spec.returns.description);
+        tags.push({ name: 'returns', value });
+      }
+
+      const tagsForReturn = this.#override.extraTagsForParam(spec, spec.returns, `${id}.return`);
+      tags.unshift(...tagsForReturn ?? []);
     }
 
     if (spec.deprecated) {

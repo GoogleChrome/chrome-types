@@ -112,6 +112,11 @@ export class TraverseContext {
         throw new Error(`bad property: parent dict ${name}, ${cid}`);
       }
 
+      // Add the name to this property.
+      if (cid === undefined) {
+        p.name = name;
+      }
+
       const childId = `${parent}.${name}`;
       if (this.#filter(p, childId)) {
         fn(p, childId);
