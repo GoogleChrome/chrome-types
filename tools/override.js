@@ -530,37 +530,6 @@ export class RenderOverride {
   }
 
   /**
-   * @param {chromeTypes.TypeSpec} methodSpec
-   * @param {chromeTypes.TypeSpec} spec
-   * @param {string} id
-   */
-  extraTagsForReturn(methodSpec, spec, id) {
-    const bestChannel = this.bestChannelFor(id);
-    if (bestChannel !== 'stable') {
-      return;
-    }
-
-    /** @type {chromeTypes.Tag[]} */
-    const tags = [];
-
-    // Grab data for our parent (the method) and don't display it if it's the same.
-    const sinceText = this.sinceTextFor(spec, id);
-    const methodSinceText = this.sinceTextFor(methodSpec, parentId(id));
-
-    if (sinceText.since && sinceText.since !== methodSinceText.since) {
-      tags.push({ name: 'chrome-returns-since', value: sinceText.since });
-    }
-    if (sinceText.deprecatedSince && sinceText.deprecatedSince !== methodSinceText.deprecatedSince) {
-      tags.push({ name: 'chrome-returns-deprecated-since', value: sinceText.since });
-    }
-    if (spec.deprecated && !methodSpec.deprecated) {
-      tags.push({ name: 'chrome-returns-deprecated' });
-    }
-
-    return tags;
-  }
-
-  /**
    * Returns friendly information about what version this is available from, and what version
    * it was deprecated from. Both are optional.
    *

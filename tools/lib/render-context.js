@@ -514,6 +514,9 @@ export class RenderContext {
           const templates = /** @type {chromeTypes.TypeSpec[]} */ (spec.value.slice(1));
           const inner = templates.map((spec) => {
             // nb. This renders with the same parent ID.
+            // FIXME: XXX This should WIN over the parent, e.g., Promise<void>
+                  // suddenly type is added! Promise<Foo> should be "new".
+                  // ugh doesn't really work? same ID?
             return this.renderType(spec, id);
           });
           return `${spec.$ref}<${inner.join(', ')}>`;
@@ -624,10 +627,10 @@ export class RenderContext {
   /**
    * @param {chromeTypes.TypeSpec} spec
    * @param {string} id
-   * @return {RenderBuffer?}
+   * @return {chromeTypes.Tag[]}
    */
-  renderComment(spec, id) {
-    /** @type {{name: string, value?: string}[]} */
+  tagsForRenderComment(spec, id) {
+    /** @type {chromeTypes.Tag[]} */
     const tags = [];
 
     this.#t.forEach(spec.parameters, id, (param, childId) => {
@@ -645,8 +648,16 @@ export class RenderContext {
         tags.push({ name: 'returns', value });
       }
 
-      const tagsForReturn = this.#override.extraTagsForReturn(spec, spec.returns, `${id}.return`);
-      tags.unshift(...tagsForReturn ?? []);
+      // If there's extra tags really intended for the return type, then include them all under a
+      // special "extra" tag. This is expanded by our TypeDoc parser on developer.chrome.com.
+      const tagsForReturn = this.tagsForRenderComment(spec.returns, `${id}.return`);
+      const transformedTags = tagsForReturn.map((tag) => {
+        return {
+          name: 'chrome-returns-extra',
+          value: tag.name + (tag.value ? ` ${tag.value}` : ''),
+        };
+      });
+      tags.unshift(...transformedTags);
     }
 
     if (spec.deprecated) {
@@ -665,13 +676,6 @@ export class RenderContext {
       }
     }
 
-    let description = sanitizeCommentData(spec.description);
-
-    // Rewrite the description.
-    if (description) {
-      description = this.#override.rewriteComment(description, id) ?? description;
-    }
-
     // Rewrite any tags with values.
     for (const tag of tags) {
       if (tag.value) {
@@ -682,6 +686,24 @@ export class RenderContext {
 
     // Append any additional tags. These don't get rewritten.
     tags.push(...this.#override.tagsFor(spec, id) ?? []);
+
+    return tags;
+  }
+
+  /**
+   * @param {chromeTypes.TypeSpec} spec
+   * @param {string} id
+   * @return {RenderBuffer?}
+   */
+  renderComment(spec, id) {
+    const tags = this.tagsForRenderComment(spec, id);
+
+    let description = sanitizeCommentData(spec.description);
+
+    // Rewrite the description.
+    if (description) {
+      description = this.#override.rewriteComment(description, id) ?? description;
+    }
 
     if (description || tags.length) {
       const buf = new RenderBuffer();

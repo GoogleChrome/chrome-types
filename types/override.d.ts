@@ -24,14 +24,10 @@ export interface RenderOverride {
   typeOverride(spec: chromeTypes.TypeSpec, id: string): chromeTypes.TypeSpec | undefined;
 
   /**
-   * Finds any additional @-tags for this node.
+   * Finds any additional @-tags for this node, on top of the standard non-Chrome annotated
+   * tags (e.g., @deprecated, @since and so on).
    */
   tagsFor(spec: chromeTypes.TypeSpec, id: string): chromeTypes.Tag[] | undefined;
-
-  /**
-   * Find any extra @-tags for the return type. This is included on the method itself.
-   */
-  extraTagsForReturn(methodSpec: chromeTypes.TypeSpec, spec: chromeTypes.TypeSpec, id: string): chromeTypes.Tag[] | undefined;
 
   /**
    * Rewrites the passed comment. This could be for a tag param or a top-level comment.
