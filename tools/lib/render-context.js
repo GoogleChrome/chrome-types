@@ -32,12 +32,14 @@ export class RenderContext {
   #skipCallbackCount = 0;
 
   /**
-   * @param {() => void} fn
+   * @template T
+   * @param {() => T} fn
+   * @return {T}
    */
   #skipCallbacks = (fn) => {
     try {
       ++this.#skipCallbackCount;
-      fn();
+      return fn();
     } finally {
       --this.#skipCallbackCount;
     }
@@ -180,6 +182,8 @@ export class RenderContext {
    * @param {string} id
    */
   renderObjectAsType(prop, id) {
+    this.#announce(prop, id);
+
     prop = this.#override.typeOverride(prop, id) ?? prop;
 
     const name = last(id);
@@ -202,8 +206,6 @@ export class RenderContext {
       }
     }
 
-    let needsGap = false;
-
     const properties = this.#t.propertiesFor(prop, id);
     for (const childId in properties) {
       const spec = properties[childId];
@@ -215,14 +217,11 @@ export class RenderContext {
         continue;
       }
 
+      buf.line();
+
       const commentBuffer = this.renderComment(spec, childId);
       if (!commentBuffer?.isEmpty) {
-        buf.line();
         buf.append(commentBuffer);
-        needsGap = true;
-      } else if (needsGap) {
-        buf.line();
-        needsGap = false;
       }
 
       const opt = spec.optional ? '?' : '';
@@ -318,22 +317,11 @@ export class RenderContext {
         this.#t.forEach(params, id, (param, childId) => {
           buf.line();
 
-          // We can't annotate parameters generally, but TypeDoc requires (?) that we annotate
-          // parameters which happen to be function signatures with `@param` for their params.
-          // (It's not clear this is fully valid TS.)
-          if (param.parameters) {
-            const comment = this.renderComment({
-              parameters: param.parameters,
-            }, childId);
-            if (!comment?.isEmpty) {
-              buf.append(comment);
-            }
-            // FIXME: We could remove the description from all the parameters (@param) we just
-            // rendered, but instead we just render them again.
-            // param.parameters = param.parameters.map((param) => {
-            //   const {description, ...rest} = param;
-            //   return rest;
-            // });
+          // The @param _description_ has already been annotated by our parent, but include all the
+          // other possible tags for this node here.
+          const comment = this.renderCommentWithoutDescription(param, childId);
+          if (!comment?.isEmpty) {
+            buf.append(comment);
           }
 
           const name = last(childId);
@@ -347,18 +335,12 @@ export class RenderContext {
       }
     });
 
-    // Announce the function itself.
+    // Announce the function itself, and the union of all parmeters. Announcing is a side-effect of
+    // rendering.
     this.#announce(spec, id);
-
-    // Announce the aggregate of all parameters.
     for (const param of allParams.values()) {
       const childId = `${id}.${param.name}`;
       this.renderType(param, childId);
-
-      // TODO(samthor): this is a bit ugly, we announce in odd places.
-      // We need to announce these because we only normally announce when rendering a comment,
-      // and params/return values aren't _specifically_ commented, only as part of their parent.
-      this.#announce(param, childId);
     }
 
     return buf;
@@ -390,6 +372,8 @@ export class RenderContext {
    */
   renderType(spec, id, ambig = false) {
     spec = this.#override.typeOverride(spec, id) ?? spec;
+
+    this.#announce(spec, id);
 
     // This is like $ref, but seems to win.
     if (spec.isInstanceOf) {
@@ -441,7 +425,8 @@ export class RenderContext {
       // HACK: Some array types are missing items, just assume it's a number.
       const { items = { type: 'number' } } = spec;
 
-      const inner = this.renderType(items, `${id}[]`, true);
+      // Announce the enclosed type and render it (with the same ID).
+      const inner = this.renderType(items, id, true);
 
       // There's a maximum number of items here. Render tuples from min -> max.
       if (spec.maxItems) {
@@ -466,7 +451,7 @@ export class RenderContext {
 
     if (spec.type === 'object') {
       const additionalPropertiesPart = spec.additionalProperties ?
-        `[name: string]: ${this.renderType(spec.additionalProperties, `${id}{}`)}` :
+        `[name: string]: ${this.renderType(spec.additionalProperties, id)}` :
         '';
 
       const props = this.#t.propertiesFor(spec, id);
@@ -479,23 +464,18 @@ export class RenderContext {
       const buf = new RenderBuffer();
       buf.start('{');
 
-      let needsGap = false;
       if (additionalPropertiesPart) {
-        needsGap = true;
         buf.line(additionalPropertiesPart + ',');
       }
 
       for (const childId in props) {
         const prop = props[childId];
 
+        buf.line();
+
         const commentBuffer = this.renderComment(prop, childId);
         if (!commentBuffer?.isEmpty) {
-          buf.line();
           buf.append(commentBuffer);
-          needsGap = true;
-        } else if (needsGap) {
-          buf.line();
-          needsGap = false;
         }
 
         const name = last(childId);
@@ -513,8 +493,10 @@ export class RenderContext {
       if (spec.properties && Object.keys(spec.properties).length) {
         const { properties, ...rest } = spec;
 
+        // Render the $ref without announcing it, so we don't get duplicate symbols.
+        const renderedRefType = this.#skipCallbacks(() => this.renderType(rest, id));
         const s = [
-          this.renderType(rest, id),
+          renderedRefType,
           this.renderType({ properties, type: 'object' }, id),
         ];
         return s.join(' & ')
@@ -530,9 +512,9 @@ export class RenderContext {
         // types in our rendering to demonstrate further template types.
         if (spec.value.length > 1) {
           const templates = /** @type {chromeTypes.TypeSpec[]} */ (spec.value.slice(1));
-          const inner = templates.map((spec, i) => {
-            const childId = `${id}.@${i}`;
-            return this.renderType(spec, childId);
+          const inner = templates.map((spec) => {
+            // nb. This renders with the same parent ID.
+            return this.renderType(spec, id);
           });
           return `${spec.$ref}<${inner.join(', ')}>`;
         }
@@ -574,17 +556,13 @@ export class RenderContext {
           --lastOptional;
         }
 
-        let needsGap = false;
-
         args.forEach(({ param, id: childId }, i) => {
-          const commentBuffer = this.renderComment(param, childId);
-          if (!commentBuffer?.isEmpty) {
-            buf.line();
-            buf.append(commentBuffer);
-            needsGap = true;
-          } else if (needsGap) {
-            buf.line();
-            needsGap = false;
+
+          // The @param _description_ has already been annotated by our parent, but include all the
+          // other possible tags for this node here.
+          const comment = this.renderCommentWithoutDescription(param, childId);
+          if (!comment?.isEmpty) {
+            buf.append(comment);
           }
 
           const opt = i >= lastOptional && param.optional ? '?' : '';
@@ -605,12 +583,6 @@ export class RenderContext {
       // and availability version-over-version.
       const returns = spec.returns ?? { type: 'void' };
       buf.append(` => ${this.renderReturnType(returns, `${id}.return`)}`);
-
-      // HACK: The comment being rendered _for us_ (by our caller) won't announce the return type.
-      // Do it here.
-      if (returns.type !== 'void') {
-        this.#announce(returns, `${id}.return`);
-      }
 
       return buf.render();
     }
@@ -644,6 +616,16 @@ export class RenderContext {
    * @param {string} id
    * @return {RenderBuffer?}
    */
+  renderCommentWithoutDescription(spec, id) {
+    const {description, ...rest} = spec;
+    return this.renderComment(rest, id);
+  }
+
+  /**
+   * @param {chromeTypes.TypeSpec} spec
+   * @param {string} id
+   * @return {RenderBuffer?}
+   */
   renderComment(spec, id) {
     /** @type {{name: string, value?: string}[]} */
     const tags = [];
@@ -655,9 +637,6 @@ export class RenderContext {
         value += ` ${description}`;
       }
       tags.push({ name: 'param', value });
-
-      const tagsForParam = this.#override.extraTagsForParam(spec, param, childId);
-      tags.unshift(...tagsForParam ?? []);
     });
 
     if (spec.returns && spec.returns?.type !== 'void') {
@@ -666,7 +645,7 @@ export class RenderContext {
         tags.push({ name: 'returns', value });
       }
 
-      const tagsForReturn = this.#override.extraTagsForParam(spec, spec.returns, `${id}.return`);
+      const tagsForReturn = this.#override.extraTagsForReturn(spec, spec.returns, `${id}.return`);
       tags.unshift(...tagsForReturn ?? []);
     }
 
@@ -704,9 +683,6 @@ export class RenderContext {
     // Append any additional tags. These don't get rewritten.
     tags.push(...this.#override.tagsFor(spec, id) ?? []);
 
-    // Invoke callbacks. Used for history.
-    this.#announce(spec, id);
-
     if (description || tags.length) {
       const buf = new RenderBuffer();
       buf.comment(description, tags);
@@ -721,7 +697,7 @@ export class RenderContext {
    * @param {string} id
    */
   #announce = (spec, id) => {
-    if (this.#skipCallbackCount) {
+    if (this.#skipCallbackCount || spec.type === 'void') {
       return;
     }
     for (const callback of this.#callbacks) {

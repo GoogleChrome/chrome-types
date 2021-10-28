@@ -29,11 +29,9 @@ export interface RenderOverride {
   tagsFor(spec: chromeTypes.TypeSpec, id: string): chromeTypes.Tag[] | undefined;
 
   /**
-   * Find any extra @-tags for a specific param, including one suffixed with "return".
-   *
-   * This is needed as different expansions of methods may require different tags.
+   * Find any extra @-tags for the return type. This is included on the method itself.
    */
-  extraTagsForParam(methodSpec: chromeTypes.TypeSpec, spec: chromeTypes.TypeSpec, id: string): chromeTypes.Tag[] | undefined;
+  extraTagsForReturn(methodSpec: chromeTypes.TypeSpec, spec: chromeTypes.TypeSpec, id: string): chromeTypes.Tag[] | undefined;
 
   /**
    * Rewrites the passed comment. This could be for a tag param or a top-level comment.

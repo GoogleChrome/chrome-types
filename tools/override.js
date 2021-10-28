@@ -138,7 +138,7 @@ export class RenderOverride {
     }
 
     /** @type {{[name: string]: chromeTypes.TypeSpec}} */
-    const additionalProperties = {};
+    const eventsAsProperties = {};
 
     for (const event of spec.events) {
       const { returns, parameters, type, options, extraParameters, filters, ...outer } = event;
@@ -168,7 +168,7 @@ export class RenderOverride {
 
         // The template args are like "functionType", "conditions", "actions", so mark the function
         // as "never" so addListener etc cannot be used here.
-        additionalProperties[event.name] = {
+        eventsAsProperties[event.name] = {
           $ref: 'events.Event',
           value: [
             event.name,
@@ -248,19 +248,21 @@ export class RenderOverride {
         };
 
         // This $ref matches the magic type in `preamble.d.ts`.
-        additionalProperties[event.name] = {
+        eventsAsProperties[event.name] = {
           ...outer,
           $ref: 'CustomChromeEvent',
           value: ['', addListenerFunction],
+          _event: true,
         };
         continue;
       }
 
       // Otherwise this is a normal event that references 'event.Event'.
-      additionalProperties[event.name] = {
+      eventsAsProperties[event.name] = {
         ...outer,
         $ref: 'events.Event',
         value: [event.name, callbackType],
+        _event: true,
       };
     }
 
@@ -268,7 +270,8 @@ export class RenderOverride {
     return {
       ...spec,
       events: undefined,
-      properties: { ...spec.properties, ...additionalProperties },
+      properties: { ...spec.properties, ...eventsAsProperties },
+      _event: true,
     };
   }
 
@@ -420,6 +423,11 @@ export class RenderOverride {
     /** @type {{name: string, value?: string, keep?: true}[]} */
     const tags = [];
 
+    // Push a special "@event" which is just used by TypeDoc to group us.
+    if (spec._event) {
+      tags.push({name: 'event'});
+    }
+
     /** @type {boolean} */
     let disallowForServiceWorkers = false;
 
@@ -526,7 +534,7 @@ export class RenderOverride {
    * @param {chromeTypes.TypeSpec} spec
    * @param {string} id
    */
-  extraTagsForParam(methodSpec, spec, id) {
+  extraTagsForReturn(methodSpec, spec, id) {
     const bestChannel = this.bestChannelFor(id);
     if (bestChannel !== 'stable') {
       return;
@@ -539,17 +547,14 @@ export class RenderOverride {
     const sinceText = this.sinceTextFor(spec, id);
     const methodSinceText = this.sinceTextFor(methodSpec, parentId(id));
 
-    const prefix = id.endsWith('.return') ? 'chrome-returns' : 'chrome-param';
-    const paramPrefix = id.endsWith('.return') ? '' : last(id) + ' ';
-
     if (sinceText.since && sinceText.since !== methodSinceText.since) {
-      tags.push({ name: prefix + '-since', value: paramPrefix + sinceText.since });
+      tags.push({ name: 'chrome-returns-since', value: sinceText.since });
     }
     if (sinceText.deprecatedSince && sinceText.deprecatedSince !== methodSinceText.deprecatedSince) {
-      tags.push({ name: prefix + '-deprecated-since', value: paramPrefix + sinceText.since });
+      tags.push({ name: 'chrome-returns-deprecated-since', value: sinceText.since });
     }
     if (spec.deprecated && !methodSpec.deprecated) {
-      tags.push({ name: prefix + '-deprecated', value: paramPrefix.trim() });
+      tags.push({ name: 'chrome-returns-deprecated' });
     }
 
     return tags;

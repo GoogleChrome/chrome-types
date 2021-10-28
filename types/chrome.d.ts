@@ -138,6 +138,9 @@ export interface TypeSpec extends SharedSpec {
 
   // only for top-level namespace types
   noinline_doc?: boolean | 'True';
+
+  // special to mark converted-from-event-to-property, not part of definition
+  _event?: boolean;
 }
 
 

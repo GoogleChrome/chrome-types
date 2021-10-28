@@ -61,12 +61,15 @@ This is used internally to generate historic version data for Chrome's APIs.
   const renderOverride = new RenderOverride(o.api, fq);
   const renderContext = new RenderContext(renderOverride);
 
-  /** @type {Map<string, chromeTypes.TypeSpec>} */
+  /** @type {Map<string, boolean>} */
   const symbols = new Map();
 
   renderContext.addCallback((spec, id) => {
-    if (symbols.has(id)) {
-      throw new Error(`got dup symbol: ${id}`);
+    // This can have duplicate symbols because of e.g. union or intersection types.
+    // We hit the _real, rendered_ symbol first.
+    const prev = symbols.get(id);
+    if (prev !== undefined) {
+      return;
     }
 
     // This should never happen: void symbols shouldn't be passed here (and only exist as return
@@ -75,7 +78,13 @@ This is used internally to generate historic version data for Chrome's APIs.
       throw new Error(`got void`);
     }
 
-    symbols.set(id, spec);
+    // We only care about symbols which are stable.
+    const channel = renderOverride.bestChannelFor(id);
+    if (channel !== 'stable') {
+      return;
+    }
+
+    symbols.set(id, Boolean(spec.deprecated));
   });
 
   renderContext.renderAll(Object.values(o.api));
@@ -94,30 +103,15 @@ This is used internally to generate historic version data for Chrome's APIs.
   const out = {};
 
   let deprecatedCount = 0;
-  let skipCount = 0;
 
-  for (const [id, spec] of symbols) {
-    // This generates override tags, but doesn't include e.g., deprecated which comes from the spec.
-    const tags = renderOverride.completeTagsFor(spec, id);
-    const channel = /** @type {chromeTypes.Channel|undefined} */ (tags.find(({ name }) => name === 'chrome-channel')?.value);
-
-    // Only add a symbol if it's in the stable channel, so we can look at historic changes. Only
-    // mark deprecated, so we can determine when that happened.
-    // We don't include beta/dev etc symbols: that data is already obvious when generating the
-    // definitions file.
-    if (!channel || channel === 'stable') {
-      out[id] = {};
-
-      if (spec.deprecated) {
-        out[id].deprecated = true;
-        ++deprecatedCount;
-      }
-    } else {
-      ++skipCount;
+  for (const [id, deprecated] of symbols) {
+    out[id] = deprecated ? {deprecated: true} : {};
+    if (deprecated) {
+      ++deprecatedCount;
     }
   }
 
-  log.warn(`Found ${Object.keys(out).length} stable symbols (${deprecatedCount} deprecated, ${skipCount} skipped) at ${o.definitionsRevision}`);
+  log.warn(`Found ${Object.keys(out).length} stable symbols (${deprecatedCount} deprecated,) at ${o.definitionsRevision}`);
   process.stdout.write(JSON.stringify(out, undefined, 2));
 }
 
