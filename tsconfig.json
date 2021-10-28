@@ -21,6 +21,7 @@
   "include": [
     // include the JS files you'd like to check here
     "tools/**/*.js",
-    "*.d.ts",
+    "tests/**/*.js",
+    "types/*.d.ts",
   ],
 }
