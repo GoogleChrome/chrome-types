@@ -316,9 +316,10 @@ export class RenderContext {
   
         buf.start('');
         this.#t.forEach(params, id, (param, childId) => {
+          buf.line();
 
-          // If this parameter happens to be a function, we need to inline the "@param"
-          // annotations here to keep TypeDoc happy.
+          // We can't annotate parameters generally, but TypeDoc requires (?) that we annotate
+          // parameters which happen to be function signatures with `@param` for their params.
           // (It's not clear this is fully valid TS.)
           if (param.parameters) {
             const comment = this.renderComment({
@@ -327,9 +328,8 @@ export class RenderContext {
             if (!comment?.isEmpty) {
               buf.append(comment);
             }
-
-            // FIXME: We could remove the description from the inline function below
-            // but there's no real reason aside reducing redundancy.
+            // FIXME: We could remove the description from all the parameters (@param) we just
+            // rendered, but instead we just render them again.
             // param.parameters = param.parameters.map((param) => {
             //   const {description, ...rest} = param;
             //   return rest;
