@@ -45,7 +45,7 @@ jobs:
       # Log differences in the _all.d.ts file. This is just for logging, failure should not stop
       # a publish. (This will always have a "generated on" diff, but that's not included in the
       # decision as to whether to publish again).
-      - run: diff -C1 --color=always node_modules/chrome-types/_all.d.ts dist/_all.d.ts || true
+      - run: diff -C3 --color=always node_modules/chrome-types/_all.d.ts dist/_all.d.ts || true
 
       # This publishes only if the package.json version has been incremented compared to the latest
       # published version. Incrementing happens in build above.
