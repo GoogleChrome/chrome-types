@@ -54,3 +54,5 @@ jobs:
           # This is from Google-internal go/wombot.
           token: ${{ secrets.WOMBOT_TOKEN }}
           registry: https://wombat-dressing-room.appspot.com
+          package: ./dist/package.json
+
