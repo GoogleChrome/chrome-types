@@ -196,3 +196,28 @@ test('expandFunctionParams returns_async', t => {
     ]
   ]);
 });
+
+
+test('filter', t => {
+  /** @type {(spec: chromeTypes.TypeSpec, id: string) => boolean} */
+  const filter = (spec, id) => {
+    if (id.endsWith('.foo')) {
+      return false;
+    }
+    return true;
+  };
+
+  const tc = new traverse.TraverseContext(filter);
+
+  /** @type {{[id: string]: chromeTypes.TypeSpec}} */
+  const properties = {
+    'foo': { type: 'number', name: 'foo' },
+    'que': { type: 'void', name: 'que' },
+  };
+  
+  const { arr, callback } = buildHandler();
+  tc.forEach(cloneObject(properties), 'api:bar.Zing', callback);
+
+  const fooProperty = arr.find(({spec: {name}}) => name === 'foo')
+  t.falsy(fooProperty, 'foo should be filtered out');
+});

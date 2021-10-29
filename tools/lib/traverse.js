@@ -109,13 +109,8 @@ export class TraverseContext {
       const cid = p.id ?? p.name;
 
       if (cid !== undefined && cid !== name) {
-        throw new Error(`bad property: parent dict ${name}, ${cid}`);
+        throw new Error(`bad property: parent dict name=${name}, but have local name=${cid}`);
       }
-
-      // // Add the name to this property.
-      // if (cid === undefined) {
-      //   p.name = name;
-      // }
 
       const childId = `${parent}.${name}`;
       if (this.#filter(p, childId)) {
