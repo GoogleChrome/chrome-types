@@ -25,7 +25,8 @@
     "typescript": "^4.4.3"
   },
   "scripts": {
-    "build-head": "./build-head.sh",
+    "build": "node tools/run-release.js",
     "test": "ava"
-  }
+  },
+  "private": true
 }

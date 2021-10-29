@@ -1,0 +1,49 @@
+name: build & publish chrome-types
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 22 * * *'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 16
+
+      - run: npm ci
+
+      - run: npm test
+
+  publish-npm:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 16
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - run: npm install --no-save chrome-types@latest
+
+      # Log differences in the _all.d.ts file. This is just for logging, failure should not stop
+      # a publish. (This will always have a "generated on" diff, but that's not included in the
+      # decision as to whether to publish again).
+      - run: diff -C1 --color=always node_modules/chrome-types/_all.d.ts dist/_all.d.ts || true
+
+      # This publishes only if the package.json version has been incremented compared to the latest
+      # published version. Incrementing happens in build above.
+      - uses: JS-DevTools/npm-publish@v1
+        with:
+          # This is from Google-internal go/wombot.
+          token: ${{ secrets.WOMBOT_TOKEN }}
+          registry: https://wombat-dressing-room.appspot.com

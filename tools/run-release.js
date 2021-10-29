@@ -1,4 +1,27 @@
 #!/usr/bin/env node
+/**
+ * Copyright 2021 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
+/**
+ * @fileoverview Runs the entire release process for Chrome's extension types. Writes an updated
+ * package for publish inside "dist/", but only revs the version of the published package
+ * "chrome-types" if the config hash has changed.
+ */
+
 
 import { run, toolInvoke, rootDir } from './lib/spawn-helper.js';
 import * as path from 'path';
@@ -11,6 +34,16 @@ import fetch from 'node-fetch';
 
 
 const distDir = path.join(rootDir, 'dist');
+
+
+const packageName = 'chrome-types';
+
+
+/**
+ * This is contained within the published package.json's "config" subtree, which contains arbitrary
+ * values. We use this to compare to our current build to see if something has changed.
+ */
+const buildHashConfigKey = 'build-hash';
 
 
 /**
@@ -61,9 +94,9 @@ typescriptCheck(allTypesFile);
 
 
 log('Fetching prior published info...');
-const r = await fetch('https://registry.npmjs.org/chrome-types/latest');
+const r = await fetch(`https://registry.npmjs.org/${packageName}/latest`);
 const publishedInfo = /** @type {PackageJSONType} */ (await r.json());
-const previousHash = publishedInfo.config?.['build-hash'] ?? '';
+const previousHash = publishedInfo.config?.[buildHashConfigKey] ?? '';
 const priorVersion = publishedInfo.version ?? '';
 
 
@@ -78,8 +111,8 @@ log('Updating package.json...');
 const packageTemplate = JSON.parse(fs.readFileSync(path.join(distDir, 'package.template.json'), 'utf-8'));
 packageTemplate.version = wasChange ? (semver.inc(priorVersion, 'patch') ?? '') : priorVersion;
 packageTemplate.config ??= {};
-packageTemplate.config['build-hash'] = buildHash;
-fs.writeFileSync(path.join(distDir, 'package.json'), JSON.stringify(packageTemplate));
+packageTemplate.config[buildHashConfigKey] = buildHash;
+fs.writeFileSync(path.join(distDir, 'package.json'), JSON.stringify(packageTemplate, undefined, 2));
 
 
 log(`Was v${publishedInfo.version}, now v${packageTemplate.version}`)
