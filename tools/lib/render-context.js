@@ -63,6 +63,8 @@ export class RenderContext {
   }
 
   /**
+   * Renders every passed namespace as .d.ts.
+   *
    * @param {chromeTypes.NamespaceSpec[]} apis
    */
   renderAll(apis) {
@@ -123,6 +125,9 @@ export class RenderContext {
   }
 
   /**
+   * Renders all properties, events, functions etc for this namespace. Returns an empty buffer
+   * if we have no symbols.
+   *
    * @param {chromeTypes.NamespaceSpec} namespace
    * @param {string} toplevel
    */
