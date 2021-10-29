@@ -260,24 +260,22 @@ export class RenderContext {
       throw new Error(`got function which has '$ref' to other: ${JSON.stringify(spec)}`);
     }
 
-    if (!spec.name) {
-      throw new Error(`cannot render unnamed function: ${JSON.stringify(spec)}`);
-    }
+    const name = last(id);
 
     const buf = new RenderBuffer();
 
-    let effectiveName = spec.name;
+    let effectiveName = name;
     let prefix = '';
 
     if (isNamespaceFunction) {
-      if (isValidToken(spec.name)) {
+      if (isValidToken(name)) {
         prefix = 'export function ';
       } else {
         // HACK: This happens once for a method named `delete`.
         prefix = 'function ';
         effectiveName = `_${effectiveName}`;
         buf.line();
-        buf.line(`export {${effectiveName} as ${spec.name}};`)
+        buf.line(`export {${effectiveName} as ${name}};`)
       }
     }
 
@@ -289,9 +287,9 @@ export class RenderContext {
       const expansions = this.#t.expandFunctionParams(spec, id);
 
       // Record all possible expansions, except void, which isn't rendered / does not exist.
-      expansions.flat().forEach((spec) => {
+      expansions.flat().forEach((param) => {
         if (spec.type !== 'void') {
-          allParams.set(spec.name, spec);
+          allParams.set(param.name, param);
         }
       });
 

@@ -112,10 +112,10 @@ export class TraverseContext {
         throw new Error(`bad property: parent dict ${name}, ${cid}`);
       }
 
-      // Add the name to this property.
-      if (cid === undefined) {
-        p.name = name;
-      }
+      // // Add the name to this property.
+      // if (cid === undefined) {
+      //   p.name = name;
+      // }
 
       const childId = `${parent}.${name}`;
       if (this.#filter(p, childId)) {
@@ -146,7 +146,7 @@ export class TraverseContext {
    *   withCallback: chromeTypes.TypeSpec,
    * }=}
    */
-  maybeExpandFunctionReturnsAsync(spec) {
+  _maybeExpandFunctionReturnsAsync(spec) {
     const { returns_async, ...clone } = spec;
     if (!returns_async) {
       return undefined;
@@ -202,6 +202,12 @@ export class TraverseContext {
   }
 
   /**
+   * Chrome supports "early" optional parameters, as well as a special "returns_async" parameter
+   * which actually means that this returns a `Promise` OR supports a callback.
+   *
+   * This expands all possible combinations for rendering as multiple signatures. The return type
+   * includes the signature's return in the 0th position, followed by all parameters.
+   *
    * @param {chromeTypes.TypeSpec} spec
    * @param {string} id
    * @return {[chromeTypes.NamedTypeSpec, ...chromeTypes.NamedTypeSpec[]][]}
@@ -209,7 +215,7 @@ export class TraverseContext {
   expandFunctionParams(spec, id) {
     // If this is actually a Promise-supporting API, then we call ourselves again to support both
     // callback and Promise-based versions.
-    const expanded = this.maybeExpandFunctionReturnsAsync(spec);
+    const expanded = this._maybeExpandFunctionReturnsAsync(spec);
     if (expanded) {
       return [
         ...this.expandFunctionParams(expanded.withPromise, id),

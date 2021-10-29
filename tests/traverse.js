@@ -130,3 +130,69 @@ test('expandFunctionParams', t => {
   ]);
 
 });
+
+
+test('expandFunctionParams returns', t => {
+  const filter = () => true;
+  const tc = new traverse.TraverseContext(filter);
+
+  /** @type {chromeTypes.TypeSpec} */
+  const returnsFunction = {
+    type: 'function',
+    parameters: [
+      { type: 'string', name: 's', optional: true },
+    ],
+    returns: { type: 'double' },
+  };
+
+  const returnsFunctionExpansions = tc.expandFunctionParams(returnsFunction, 'api:test');
+  t.deepEqual(returnsFunctionExpansions, [
+    [{ type: 'double', name: 'return' }, { type: 'string', name: 's', optional: true }],
+  ]);
+
+});
+
+
+test('expandFunctionParams returns_async', t => {
+  const filter = () => true;
+  const tc = new traverse.TraverseContext(filter);
+
+  /** @type {chromeTypes.TypeSpec} */
+  const returnsAsyncFunction = {
+    type: 'function',
+    parameters: [
+      { type: 'string', name: 's' },
+    ],
+    returns_async: {
+      name: 'callback',
+      type: 'function',
+      parameters: [{ type: 'number', name: 'whatever' }],
+    },
+  };
+
+  // Because the expansion supports a Promise if this is missing, we expect it to be passed back to
+  // us with `optional: true`.
+  const expectedOptionalReturnsAsync = /** @type {chromeTypes.NamedTypeSpec} */ (
+    { ...returnsAsyncFunction.returns_async, optional: true }
+  );
+
+  const returnsAsyncFunctionExpansions = tc.expandFunctionParams(
+    cloneObject(returnsAsyncFunction),
+    'api:test',
+  );
+  t.deepEqual(returnsAsyncFunctionExpansions, [
+    [
+      {
+        $ref: 'Promise',
+        name: 'return',
+        value: ['return', { name: 'whatever', type: 'number' }],
+      },
+      { type: 'string', name: 's' },
+    ],
+    [
+      { type: 'void', name: 'return' },
+      { type: 'string', name: 's' },
+      expectedOptionalReturnsAsync,
+    ]
+  ]);
+});
