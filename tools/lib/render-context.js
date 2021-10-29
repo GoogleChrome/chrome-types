@@ -98,7 +98,7 @@ export class RenderContext {
     }
 
     const content = this.renderInnerNamespace(namespace, toplevel);
-    if (content.isEmpty) {
+    if (!content) {
       return '';
     }
 
@@ -492,7 +492,7 @@ export class RenderContext {
       }
 
       buf.end('}');
-      return buf.render();
+      return buf.render(true);
     }
 
     if (spec.$ref) {
@@ -595,7 +595,7 @@ export class RenderContext {
       const returns = spec.returns ?? { type: 'void' };
       buf.append(` => ${this.renderReturnType(returns, `${id}.return`)}`);
 
-      return buf.render();
+      return buf.render(true);
     }
 
     switch (spec.type) {
