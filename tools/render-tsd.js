@@ -116,8 +116,9 @@ Options:
   const renderOverride = new RenderOverride(o.api, fq, history);
   const renderContext = new RenderContext(renderOverride);
 
-  const buf = renderContext.renderAll(Object.values(o.api));
-  renderParts.push(buf.render(true));
+  // Render the .d.ts.
+  const r = renderContext.renderAll(Object.values(o.api));
+  renderParts.push(r);
 
   const out = Buffer.from(renderParts.join('\n\n'));
   log.warn(`Built ${argv.all ? 'all' : 'MV3+'} types, generated ${out.length} bytes of .d.ts`);
