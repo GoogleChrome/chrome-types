@@ -27,8 +27,11 @@ const channelOrdering = ['stable', 'beta', 'dev', 'canary', 'trunk'];
 
 
 /**
+ * Finds the channel that is closest to 'stable'. If either param is `undefined`, returns the other.
+ *
  * @param {chromeTypes.Channel | undefined} a
  * @param {chromeTypes.Channel | undefined} b
+ * @return {chromeTypes.Channel | undefined}
  */
 export function mostReleasedChannel(a, b) {
   if (!a) {
