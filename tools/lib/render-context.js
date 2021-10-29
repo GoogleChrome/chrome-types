@@ -66,6 +66,7 @@ export class RenderContext {
    * Renders every passed namespace as .d.ts.
    *
    * @param {chromeTypes.NamespaceSpec[]} apis
+   * @return {string}
    */
   renderAll(apis) {
     const buf = new RenderBuffer();
@@ -81,24 +82,24 @@ export class RenderContext {
     buf.end('}');
     buf.line();
 
-    return buf;
+    return buf.render(true);
   }
 
   /**
    * Optionally render a namespace. Renders nothing if it has no content.
    *
    * @param {chromeTypes.NamespaceSpec} namespace
-   * @return {RenderBuffer?}
+   * @return {string}
    */
   maybeRenderNamespace(namespace) {
     const toplevel = `api:${namespace.namespace}`;
     if (!this.#override.isVisible(namespace, toplevel)) {
-      return null;
+      return '';
     }
 
     const content = this.renderInnerNamespace(namespace, toplevel);
     if (content.isEmpty) {
-      return null;
+      return '';
     }
 
     const buf = new RenderBuffer();
@@ -121,7 +122,7 @@ export class RenderContext {
       buf.line(`export {_${name} as ${name}};`)
     }
 
-    return buf;
+    return buf.render(true);
   }
 
   /**
@@ -130,6 +131,7 @@ export class RenderContext {
    *
    * @param {chromeTypes.NamespaceSpec} namespace
    * @param {string} toplevel
+   * @return {string}
    */
   renderInnerNamespace(namespace, toplevel) {
     const buf = new RenderBuffer();
@@ -178,13 +180,14 @@ export class RenderContext {
       buf.append(this.renderTopFunction(spec, id, true));
     });
 
-    return buf;
+    return buf.render(true);
   }
 
 
   /**
    * @param {chromeTypes.TypeSpec} prop
    * @param {string} id
+   * @return {string}
    */
   renderObjectAsType(prop, id) {
     this.#announce(prop, id);
@@ -253,6 +256,7 @@ export class RenderContext {
    * @param {chromeTypes.TypeSpec} spec
    * @param {string} id
    * @param {boolean} isNamespaceFunction true if in namespace, false if within class
+   * @return {string}
    */
   renderTopFunction(spec, id, isNamespaceFunction = false) {
     spec = this.#override.typeOverride(spec, id) ?? spec;
@@ -346,7 +350,7 @@ export class RenderContext {
       this.renderType(param, childId);
     }
 
-    return buf;
+    return buf.render(true);
   }
 
   /**
@@ -356,6 +360,7 @@ export class RenderContext {
    *
    * @param {chromeTypes.TypeSpec} spec
    * @param {string} id
+   * @return {string}
    */
   renderReturnType(spec, id) {
     if (!spec.optional) {

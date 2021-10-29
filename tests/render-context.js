@@ -37,7 +37,7 @@ test('renderTopFunction', t => {
       { type: 'string', name: 'a' },
     ],
   }, 'api:foo.bar', true);
-  t.is(out1.render(true), `
+  t.is(out1, `
 
 export function bar(
 
@@ -53,8 +53,7 @@ export function bar(
       { type: 'number', name: 'b' },
     ],
   }, 'api:foo.bar', true);
-
-  t.is(out2.render(true), `
+  t.is(out2, `
 
 /**
  * Something about the function
