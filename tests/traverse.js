@@ -214,7 +214,7 @@ test('filter', t => {
     'foo': { type: 'number', name: 'foo' },
     'que': { type: 'void', name: 'que' },
   };
-  
+
   const { arr, callback } = buildHandler();
   tc.forEach(cloneObject(properties), 'api:bar.Zing', callback);
 
