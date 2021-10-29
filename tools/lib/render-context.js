@@ -243,7 +243,7 @@ export class RenderContext {
     const templates = this.#override.objectTemplatesFor(id);
     const templatePart = templates ? `<${templates}>` : '';
 
-    return `${mode} ${name}${templatePart} ${buf.render()}`;
+    return `${mode} ${name}${templatePart} ${buf.render(true)}`;
   }
 
   /**
@@ -636,13 +636,12 @@ export class RenderContext {
     /** @type {chromeTypes.Tag[]} */
     const tags = [];
 
+    // Include @param only if we actually have something to say about it.
     this.#t.forEach(spec.parameters, id, (param, childId) => {
-      let value = last(childId);
-      const description = sanitizeCommentData(param.description);
+      const description = sanitizeCommentData(param.description?.trim());
       if (description) {
-        value += ` ${description}`;
+        tags.push({ name: 'param', value: `${last(childId)} ${description}` });
       }
-      tags.push({ name: 'param', value });
     });
 
     if (spec.returns && spec.returns?.type !== 'void') {

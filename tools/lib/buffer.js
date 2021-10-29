@@ -78,6 +78,7 @@ export class RenderBuffer {
    * @return {boolean} whether anything was added
    */
   comment(raw, tags = []) {
+    raw = raw?.trim();
     if (!raw && !tags.length) {
       return false;
     }
@@ -100,10 +101,16 @@ export class RenderBuffer {
     }
 
     tags.forEach(({name, value}) => {
+      name = name.trim();
+      if (!name) {
+        return;
+      }
       this.line(` * @${name}`);
+
+      value = value?.trim() ?? '';
       if (value === '') {
         // ignore
-      } else if (value != null) {
+      } else {
         this.append(` ${value}`)
       }
     });

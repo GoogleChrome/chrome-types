@@ -25,7 +25,7 @@ import * as overrideTypes from '../types/override.js';
 import { mostReleasedChannel } from './lib/channel.js';
 import { buildNamespaceAwareMarkdownRewrite } from './lib/comment.js';
 import { FeatureQuery } from './lib/feature-query.js';
-import { last, namespaceNameFromId, parentId } from './lib/traverse.js';
+import { namespaceNameFromId, parentId } from './lib/traverse.js';
 
 
 export class FeatureQueryAll extends FeatureQuery {
@@ -57,9 +57,48 @@ export class FeatureQueryAll extends FeatureQuery {
 
 
 /**
+ * Empty implementation of {@link overrideTypes.RenderOverride}. For tests.
+ * 
  * @implements {overrideTypes.RenderOverride}
  */
-export class RenderOverride {
+export class EmptyRenderOverride {
+
+  isVisible(spec, id) {
+    return true;
+  }
+
+  /**
+   * @return {string | undefined}
+   */
+  objectTemplatesFor(id) {
+    return undefined;
+  }
+
+  /**
+   * @return {chromeTypes.TypeSpec | undefined}
+   */
+  typeOverride(spec, id) {
+    return undefined;
+  }
+
+  /**
+   * @return {chromeTypes.Tag[] | undefined}
+   */
+  tagsFor(spec, id) {
+    return undefined;
+  }
+
+  /**
+   * @return {string | undefined}
+   */
+  rewriteComment(s, id, tagName) {
+    return undefined;
+  }
+
+}
+
+
+export class RenderOverride extends EmptyRenderOverride {
   #commentRewriter;
   #fq;
   #api;
@@ -71,6 +110,7 @@ export class RenderOverride {
    * @param {chromeTypes.HistoricSymbolsPayload?} history
    */
   constructor(api, fq, history = null) {
+    super();
     const allNamespaceNames = Object.keys(api);
     this.#commentRewriter = buildNamespaceAwareMarkdownRewrite(allNamespaceNames);
     this.#fq = fq;
