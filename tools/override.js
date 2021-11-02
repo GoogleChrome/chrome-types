@@ -622,8 +622,10 @@ export class RenderOverride extends EmptyRenderOverride {
   tagsFor(spec, id) {
     let tags = this.completeTagsFor(spec, id);
 
+    // Only remove parent tags if we ourselves are not a namespace and there is a valid parent.
+    // This prevents stripping tags from e.g. "api:networking.onc", which has no parent.
     const parent = parentId(id);
-    if (parent) {
+    if (parent && !spec['namespace']) {
       const parentTags = this.completeTagsFor(spec, parent);
       tags = tags.filter((tag) => {
         if (tag.keep) {

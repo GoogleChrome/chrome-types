@@ -32,7 +32,10 @@ import getStdin from 'get-stdin';
 
 
 const defualtLowVersion = 42;
-const expectedRevision = 4;
+
+
+// Rev this if something changes in the history file.
+const expectedRevision = 5;
 
 
 async function run() {

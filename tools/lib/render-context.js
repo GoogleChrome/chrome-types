@@ -134,6 +134,8 @@ export class RenderContext {
    * @return {string}
    */
   renderInnerNamespace(namespace, toplevel) {
+    this.#announce(namespace, toplevel);
+
     const buf = new RenderBuffer();
 
     // TODO: We do an awkward cast here, because typeOverride only accepts TypeSpec.
