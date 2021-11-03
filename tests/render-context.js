@@ -21,7 +21,12 @@ import * as chromeTypes from '../types/chrome.js';
 
 
 // TODO: This isn't as exhaustive as it should be. Chrome has a variety of types we should be
-// testing for.
+// testing for. Some good examples are:
+//   - render async functions
+//   - render enums
+//   - render Declarative Events
+//   - render events generally (note that chrome-types will rewrite events under
+//     namespaces/properties, but not when requested directly)
 
 
 const emptyOverride = new EmptyRenderOverride();
@@ -78,6 +83,9 @@ export function bar(
 });
 
 
+/**
+ * Test the rendering of types.
+ */
 test('renderType', t => {
   const rc = new RenderContext(emptyOverride);
 
