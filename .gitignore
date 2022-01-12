@@ -4,3 +4,4 @@ node_modules/
 dist/*.d.ts
 dist/package.json
 .cache/
+coverage/
