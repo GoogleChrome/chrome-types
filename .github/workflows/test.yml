@@ -30,6 +30,6 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Set code coverage commit status
-        run: npx -p check-code-coverage set-gh-status
+        run: npx -p check-code-coverage --from coverage/coverage-final.json set-gh-status
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
