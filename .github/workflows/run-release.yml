@@ -25,11 +25,6 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Codecov
-        uses: codecov/codecov-action@v2
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-
   publish-npm:
     needs: test
     runs-on: ubuntu-latest
