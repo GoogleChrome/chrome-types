@@ -28,7 +28,7 @@
   },
   "scripts": {
     "build": "node tools/run-release.js",
-    "test": "c8 ava"
+    "test": "c8 --reporter=lcov ava"
   },
   "private": true
 }
