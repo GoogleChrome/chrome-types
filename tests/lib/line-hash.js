@@ -15,7 +15,7 @@
  */
 
 import test from 'ava';
-import { generateLinesHash } from '../tools/lib/line-hash.js';
+import { generateLinesHash } from '../../tools/lib/line-hash.js';
 
 test('line-hash', t => {
   const s1 = `/** This comment can change */

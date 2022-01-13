@@ -15,9 +15,9 @@
  */
 
 import test from 'ava';
-import { RenderContext } from '../tools/lib/render-context.js';
-import { EmptyRenderOverride } from '../tools/override.js';
-import * as chromeTypes from '../types/chrome.js';
+import { RenderContext } from '../../tools/lib/render-context.js';
+import { EmptyRenderOverride } from '../../tools/override.js';
+import * as chromeTypes from '../../types/chrome.js';
 
 
 // TODO: This isn't as exhaustive as it should be. Chrome has a variety of types we should be

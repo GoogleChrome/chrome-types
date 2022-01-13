@@ -51,7 +51,7 @@ const definitionPaths = [
 /**
  * Fetch these folders to run the IDL => JSON converter.
  */
-const toolsPaths = [
+export const toolsPaths = [
   'tools/json_schema_compiler',
   'tools/json_comment_eater',
   'ppapi/generators',
