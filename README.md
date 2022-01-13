@@ -1,3 +1,7 @@
+# chrome-types
+
+[![codecov](https://codecov.io/gh/GoogleChrome/chrome-types/branch/main/graph/badge.svg?token=X84QMcCoGI)](https://codecov.io/gh/GoogleChrome/chrome-types)
+
 ⚠️ **If you're looking for TypeScript definitions for Chrome's extensions, you should depend on [chrome-types](https://www.npmjs.com/package/chrome-types) in your project.**
 
 This repo contains JS which parses Chrome's internal extension definitions and outputs TypeScript Definition files.
