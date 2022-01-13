@@ -1,8 +1,12 @@
 comment: false
 coverage:
   status:
-    patch:
+    project:
       default:
         target: auto
         threshold: 0%
         base: auto 
+        flags: 
+          - unit
+        paths: 
+          - "tools"
