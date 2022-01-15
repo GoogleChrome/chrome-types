@@ -29,7 +29,7 @@
   },
   "scripts": {
     "build": "node tools/run-release.js",
-    "test": "c8 --reporter=lcov --reporter=json ava"
+    "test": "c8 --reporter=lcov --reporter=json --all --src=tools ava"
   },
   "private": true
 }
