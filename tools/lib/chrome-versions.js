@@ -43,7 +43,7 @@ const omahaProxyUrl = 'https://omahaproxy.appspot.com/all.json';
 /**
  * @param {string} tag
  */
-function splitChromeRelease(tag) {
+export async function splitChromeRelease(tag) {
   // Look for versions like "88.0.4324.47". Ignore other tags.
   const parts = tag.split('.');
   if (parts.length !== 4) {
@@ -99,7 +99,7 @@ export async function chromeVersions() {
       continue;
     }
     const tag = rawTag.substr(tagPrefix.length);
-    const info = splitChromeRelease(tag);
+    const info = await splitChromeRelease(tag);
     if (!info) {
       continue;
     }
