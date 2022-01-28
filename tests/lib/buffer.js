@@ -15,7 +15,7 @@
  */
 
 import test from 'ava';
-import { RenderBuffer } from '../tools/lib/buffer.js';
+import { RenderBuffer } from '../../tools/lib/buffer.js';
 
 
 test('comment', t => {

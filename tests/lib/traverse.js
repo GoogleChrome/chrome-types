@@ -15,8 +15,8 @@
  */
 
 import test from 'ava';
-import * as traverse from '../tools/lib/traverse.js';
-import * as chromeTypes from '../types/chrome.js';
+import * as traverse from '../../tools/lib/traverse.js';
+import * as chromeTypes from '../../types/chrome.js';
 
 
 // Helper used for forEach tests below.
