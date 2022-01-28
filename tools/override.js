@@ -89,7 +89,7 @@ export class EmptyRenderOverride {
   }
 
   /**
-   * @return {string | undefined}
+   * @return {string|undefined}
    */
   rewriteComment(s, id, tagName) {
     return undefined;
@@ -341,7 +341,7 @@ export class RenderOverride extends EmptyRenderOverride {
         ...namespace,
         types: [
           ...namespace.types ?? [],
-          ...this.#api['contextMenusInternal'].types ?? [],
+          ...this.#api['contextMenusInternal']?.types ?? [],
         ],
       };
     }
@@ -401,6 +401,7 @@ export class RenderOverride extends EmptyRenderOverride {
     }
 
     // Fix bad contextMenusInternal references in older Chrome versions.
+    // @TODO should this return?
     if (spec.$ref && spec.$ref.startsWith('contextMenusInternal.') && !id.startsWith('api:contextMenusInternal.')) {
       spec.$ref = spec.$ref.replace(/^contextMenusInternal\./, 'contextMenus.');
     }
@@ -426,8 +427,6 @@ export class RenderOverride extends EmptyRenderOverride {
         case 'api:contentSettings.ContentSetting.get.return.setting':
         case 'api:contentSettings.ContentSetting.get.callback.details.setting':
         case 'api:types.ChromeSetting.set.details.setting':
-          return { $ref: 'T' };
-
         case 'api:types.ChromeSetting.onChange.details.value':
         case 'api:types.ChromeSetting.get.return.value':
         case 'api:types.ChromeSetting.get.callback.details.value':
@@ -445,7 +444,7 @@ export class RenderOverride extends EmptyRenderOverride {
     /** @type {chromeTypes.Channel | undefined} */
     let bestChannel = undefined;
 
-    this.#fq.checkFeature(id, (f, otherId) => {
+    this.#fq.checkFeature(id, (f) => {
       bestChannel = mostReleasedChannel(bestChannel, f.channel);
     });
 
@@ -644,8 +643,9 @@ export class RenderOverride extends EmptyRenderOverride {
   /**
    * @param {string} s
    * @param {string} id
+   * @return {string|undefined}
    */
-  rewriteComment(s, id) {
+   rewriteComment(s, id) {
     const namespace = namespaceNameFromId(id);
     const update = this.#commentRewriter(namespace, s);
     if (update !== s) {

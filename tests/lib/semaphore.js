@@ -15,7 +15,7 @@
  */
 
 import test from 'ava';
-import { Semaphore } from '../tools/lib/semaphore.js';
+import { Semaphore } from '../../tools/lib/semaphore.js';
 
 test('semaphore', async t => {
   const s = new Semaphore();

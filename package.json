@@ -1,5 +1,13 @@
 {
+  "scripts": {
+    "build": "node tools/run-release.js",
+    "test": "c8 --reporter=lcov --reporter=json --all --src=tools ava"
+  },
+  "private": true,
   "type": "module",
+  "engines": {
+    "node": "16"
+  },
   "devDependencies": {
     "@types/fancy-log": "^1.3.1",
     "@types/mri": "^1.1.1",
@@ -26,10 +34,5 @@
     "tmp": "^0.2.1",
     "turndown": "^7.1.1",
     "typescript": "^4.4.3"
-  },
-  "scripts": {
-    "build": "node tools/run-release.js",
-    "test": "c8 --reporter=lcov --reporter=json --all --src=tools ava"
-  },
-  "private": true
+  }
 }
