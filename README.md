@@ -27,6 +27,6 @@ Run "tools/prepare.js" to generate a bundle of JSON representing Chrome's extens
 You can then pass this bundle to other tools like "tools/render-tsd.js".
 See [the wiki](https://github.com/GoogleChrome/chrome-types/wiki) for more.
 
-Running the code requires Node 14+ as well as a working version of Python (3 is preferred, but 2.7+ should work) installed on your system.
+Running the code requires Node 16+ as well as a working version of Python (3 is preferred, but 2.7+ should work) installed on your system.
 This has only been tested on Linux and macOS.
 Python is used to convert Chromium's internal IDL format to JSON.
