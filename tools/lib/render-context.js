@@ -294,6 +294,11 @@ export class RenderContext {
 
       // Record all possible expansions, except void, which isn't rendered / does not exist.
       expansions.flat().forEach((param) => {
+        // If we already have a non-void return, don't overwrite with a void one
+        if (param.name === "return" && param.type === "void" && allParams.has("return")) {
+          return;
+        }
+        
         if (spec.type !== 'void') {
           allParams.set(param.name, param);
         }

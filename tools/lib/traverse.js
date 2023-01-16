@@ -270,7 +270,7 @@ export class TraverseContext {
       // Ensure that there's a return type, or fall back to `void`.
       // Even if this has a name, we call it 'return'.
       const result = /** @type {chromeTypes.NamedTypeSpec[]} */ (work.filter((x) => x !== null));
-      const returns = spec.returns ?? { type: 'void' };
+      const returns = spec.returns ?? spec.returns_async ?? { type: 'void' };
       expansions.push([{ ...returns, name: 'return' }, ...result]);
     }
 
