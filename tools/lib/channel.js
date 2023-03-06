@@ -49,3 +49,27 @@ export function mostReleasedChannel(a, b) {
     return b;
   }
 }
+
+/**
+ * Finds the channel that is furthest from 'stable'. If either param is `undefined`, returns the other.
+ *
+ * @param {chromeTypes.Channel | undefined} a
+ * @param {chromeTypes.Channel | undefined} b
+ * @return {chromeTypes.Channel | undefined}
+ */
+export function leastReleasedChannel(a, b) {
+  if (!a) {
+    return b;
+  } else if (!b) {
+    return a;
+  }
+
+  const indexA = channelOrdering.indexOf(a);
+  const indexB = channelOrdering.indexOf(b);
+
+  if (indexA > indexB) {
+    return a;
+  } else {
+    return b;
+  }
+}
