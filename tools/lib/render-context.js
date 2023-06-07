@@ -445,6 +445,14 @@ export class RenderContext {
 
       // There's a maximum number of items here. Render tuples from min -> max.
       if (spec.maxItems) {
+        // If there are more than 10 possibilities, we don't want to render
+        // [X] | [X, X] | [X, X, X] | [X, X, X, X] | [X, X, X, X, X]...
+        // so we instead just render X[] and rely on the docs to explain any
+        // limits (https://github.com/GoogleChrome/developer.chrome.com/issues/1850).
+        if (spec.maxItems - (spec.minItems ?? 0) > 10) {
+          return `${inner}[]`;
+        }
+
         /** @type {string[]} */
         const parts = [];
 
