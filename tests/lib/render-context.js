@@ -159,3 +159,35 @@ test('override', t => {
 }`);
 
 });
+
+test('render minItems/maxItems with less than 10 values', t => {
+  const rc = new RenderContext(emptyOverride);
+
+  const out = rc.renderType({
+    "name": "senderIds",
+    "type": "array",
+    "items": {
+      "type": "string"
+    },
+    "minItems": 1,
+    "maxItems": 5,
+  }, '');
+
+  t.is(out, `[string] | [string, string] | [string, string, string] | [string, string, string, string] | [string, string, string, string, string]`);
+});
+
+test('render minItems/maxItems with more than 10 values', t => {
+  const rc = new RenderContext(emptyOverride);
+
+  const out = rc.renderType({
+    "name": "senderIds",
+    "type": "array",
+    "items": {
+      "type": "string"
+    },
+    "minItems": 1,
+    "maxItems": 100,
+  }, '');
+
+  t.is(out, `string[]`);
+});
