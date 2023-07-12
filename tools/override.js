@@ -143,6 +143,8 @@ export class RenderOverride extends EmptyRenderOverride {
     switch (id) {
       case 'api:contextMenus.OnClickData':
       case 'api:notifications.NotificationBitmap':
+      case 'api:sidePanel.getPanelBehavior':
+      case 'api:sidePanel.setPanelBehavior':
         // In old versions of Chrome, this is incorrectly marked nodoc.
         return true;
     }
