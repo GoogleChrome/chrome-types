@@ -145,6 +145,8 @@ export class RenderOverride extends EmptyRenderOverride {
       case 'api:notifications.NotificationBitmap':
       case 'api:sidePanel.getPanelBehavior':
       case 'api:sidePanel.setPanelBehavior':
+      case 'api:declarativeNetRequest.getDisabledRuleIds':
+      case 'api:declarativeNetRequest.updateStaticRules':
         // In old versions of Chrome, this is incorrectly marked nodoc.
         return true;
     }
