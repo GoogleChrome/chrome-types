@@ -28,7 +28,8 @@ import getStdin from 'get-stdin';
 import * as chromeTypes from '../types/chrome.js';
 import mri from 'mri';
 import { RenderContext } from './lib/render-context.js';
-import { FeatureQueryAll, RenderOverride } from './override.js';
+import { RenderOverride } from './override.js';
+import { FeatureQuery } from './lib/feature-query.js';
 import log from 'fancy-log';
 
 
@@ -57,7 +58,7 @@ This is used internally to generate historic version data for Chrome's APIs.
   /** @type {chromeTypes.ProcessedAPIData} */
   const o = JSON.parse(await getStdin());
 
-  const fq = new FeatureQueryAll(o.feature);
+  const fq = new FeatureQuery(o.feature);
   const renderOverride = new RenderOverride(o.api, fq);
   const renderContext = new RenderContext(renderOverride);
 

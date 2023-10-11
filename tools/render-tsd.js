@@ -28,7 +28,7 @@ import mri from 'mri';
 import { RenderContext } from './lib/render-context.js';
 import { FeatureQuery } from './lib/feature-query.js';
 import log from 'fancy-log';
-import { FeatureQueryAll, RenderOverride } from './override.js';
+import { RenderOverride } from './override.js';
 
 
 async function run() {
@@ -97,7 +97,7 @@ Options:
 
   if (argv.all) {
     // We include all APIs, MV2 and MV3 etc, to render on the site.
-    fq = new FeatureQueryAll(o.feature);
+    fq = new FeatureQuery(o.feature);
 
     renderParts.push(`// Includes all types, including MV2 + Platform Apps APIs.`);
 

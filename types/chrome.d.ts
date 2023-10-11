@@ -43,6 +43,7 @@ export type Context = 'blessed_extension' | 'blessed_web_page' | 'content_script
 export type ExtensionType = 'extension' | 'hosted_app' | 'legacy_packaged_app' | 'platform_app' | 'shared_module' | 'theme' | 'login_screen_extension';
 export type All = 'all';
 export type SessionType = 'regular' | 'kiosk' | 'kiosk.autolaunched';
+export type Location = 'component' | 'external_component' | 'policy' | 'unpacked';
 
 
 export interface FeatureSpec {
