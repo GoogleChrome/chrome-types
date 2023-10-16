@@ -491,7 +491,7 @@ export class RenderOverride extends EmptyRenderOverride {
         isOnlyPlatformApps = true;
       }
 
-      requiresPolicyInstall = requiresPolicyInstall || (isDeepEqual(f.location, ['policy']));
+      requiresPolicyInstall = requiresPolicyInstall || (isDeepEqual(f.location, 'policy'));
     });
 
     const bestChannel = this.bestChannelFor(id);
