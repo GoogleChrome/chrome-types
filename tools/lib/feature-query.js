@@ -18,6 +18,7 @@
 import * as chromeTypes from '../../types/chrome.js';
 import { parentId } from './traverse.js';
 import { isDeepEqual } from './equal.js';
+import { mostReleasedChannel } from './channel.js';
 
 
 export class FeatureQuery {
@@ -57,6 +58,19 @@ export class FeatureQuery {
         ...first,
         dependencies: [...mergedDependencies],
       };
+    }
+
+    // Filter (potentially) by channel. Choose the most released channel (e.g., 'stable' over 'beta').
+    const bestChannel = q.reduce((channel, spec) => mostReleasedChannel(channel, spec.channel), /** @type {chromeTypes.Channel | undefined} */(undefined));
+    const bestChannelFilter = q.filter(({ channel }) => channel === bestChannel);
+    if (bestChannelFilter.length === 1) {
+      return bestChannelFilter[0];
+    }
+
+    // Filter by extension (prefer).
+    const extensionFilter = q.filter(({ extension_types }) => extension_types?.includes('extension'));
+    if (extensionFilter.length === 1) {
+      return extensionFilter[0];
     }
 
     // Features that are unclear here will throw.

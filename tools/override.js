@@ -26,34 +26,7 @@ import { leastReleasedChannel, mostReleasedChannel } from './lib/channel.js';
 import { buildNamespaceAwareMarkdownRewrite } from './lib/comment.js';
 import { FeatureQuery } from './lib/feature-query.js';
 import { namespaceNameFromId, parentId } from './lib/traverse.js';
-
-
-export class FeatureQueryAll extends FeatureQuery {
-
-  /**
-   * @param {chromeTypes.FeatureSpec[]} q
-   * @return {chromeTypes.FeatureSpec | null | void}
-   */
-  mergeComplexFeature(q) {
-    const s = super.mergeComplexFeature(q);
-    if (s !== undefined) {
-      return s;
-    }
-
-    // Filter (potentially) by channel. Choose the most released channel (e.g., 'stable' over 'beta').
-    const bestChannel = q.reduce((channel, spec) => mostReleasedChannel(channel, spec.channel), /** @type {chromeTypes.Channel | undefined} */(undefined));
-    const bestChannelFilter = q.filter(({ channel }) => channel === bestChannel);
-    if (bestChannelFilter.length === 1) {
-      return bestChannelFilter[0];
-    }
-
-    // Filter by extension (prefer).
-    const extensionFilter = q.filter(({ extension_types }) => extension_types?.includes('extension'));
-    if (extensionFilter.length === 1) {
-      return extensionFilter[0];
-    }
-  }
-}
+import { isDeepEqual } from './lib/equal.js';
 
 
 /**
@@ -487,6 +460,9 @@ export class RenderOverride extends EmptyRenderOverride {
     /** @type {boolean} */
     let isOnlyPlatformApps = false;
 
+    /** @type {boolean} */
+    let requiresPolicyInstall = false;
+
     // Actually loop over all features.
     // Note that this generates an OR: e.g., accessibilityFeatures requires _either_
     // "permission:accessibilityFeatures.read" OR "permission:accessibilityFeatures.write", and we
@@ -514,6 +490,8 @@ export class RenderOverride extends EmptyRenderOverride {
       if (f.extension_types && !f.extension_types.includes('extension') && f.extension_types.includes('platform_app')) {
         isOnlyPlatformApps = true;
       }
+
+      requiresPolicyInstall = requiresPolicyInstall || (isDeepEqual(f.location, 'policy'));
     });
 
     const bestChannel = this.bestChannelFor(id);
@@ -525,6 +503,10 @@ export class RenderOverride extends EmptyRenderOverride {
     } else {
       tags.push({ name: 'chrome-channel', value: bestChannel });
       tags.unshift({ name: 'alpha' });
+    }
+
+    if (requiresPolicyInstall) {
+      tags.push({ name: 'chrome-install-location', value: 'policy' });
     }
 
     if (isOnlyPlatformApps) {
