@@ -93,16 +93,16 @@ Options:
 // Built at ${o.definitionsRevision}${versionSuffix}`);
 
   /** @type {FeatureQuery} */
-  let fq;
+  let featureQuery;
 
   if (argv.all) {
     // We include all APIs, MV2 and MV3 etc, to render on the site.
-    fq = new FeatureQuery(o.feature);
+    featureQuery = new FeatureQuery(o.feature);
 
     renderParts.push(`// Includes all types, including MV2 + Platform Apps APIs.`);
 
   } else {
-    fq = new FeatureQueryModern(o.feature);
+    featureQuery = new FeatureQueryModern(o.feature);
 
     renderParts.push(`// Includes MV3+ APIs only.`);
 
@@ -113,7 +113,7 @@ Options:
   const preambleFile = new URL('../content/preamble.d.ts', import.meta.url);
   renderParts.push(fs.readFileSync(preambleFile, 'utf-8'));
 
-  const renderOverride = new RenderOverride(o.api, fq, history);
+  const renderOverride = new RenderOverride(o.api, featureQuery, history);
   const renderContext = new RenderContext(renderOverride);
 
   // Render the .d.ts.
