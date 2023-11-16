@@ -120,6 +120,7 @@ export class RenderOverride extends EmptyRenderOverride {
       case 'api:sidePanel.setPanelBehavior':
       case 'api:declarativeNetRequest.getDisabledRuleIds':
       case 'api:declarativeNetRequest.updateStaticRules':
+      case 'api:declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_RULES':
         // In old versions of Chrome, this is incorrectly marked nodoc.
         return true;
     }
