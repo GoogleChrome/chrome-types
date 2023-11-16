@@ -120,6 +120,7 @@ export class RenderOverride extends EmptyRenderOverride {
       case 'api:sidePanel.setPanelBehavior':
       case 'api:declarativeNetRequest.getDisabledRuleIds':
       case 'api:declarativeNetRequest.updateStaticRules':
+      case 'api:declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_RULES':
         // In old versions of Chrome, this is incorrectly marked nodoc.
         return true;
     }
@@ -575,8 +576,9 @@ export class RenderOverride extends EmptyRenderOverride {
       return { since: 'Pending' };
 
     } else if (self.high < this.#history.high) {
-      // This symbol is missing?
-      // TODO: This should never happen.
+      // A symbol is present now, has some history (so it isn't new) but wasn't
+      // in the last stable release. This means it was temporarily removed and
+      // then later added back in a higher version.
       return { since: `Missing ${self.high} vs ${this.#history.high}` };
 
     }
