@@ -70,9 +70,11 @@ const toolsPaths = [
  */
 async function prepareInTemp({ majorChrome, workPath, headRevision, definitionsRevision, cpuLimit }) {
   // In Chrome 121, IDL files were changed to use promises for methods by
-  // default. In older versions, we want to use the tool from the last commit
-  // before this change was made.
+  // default. This means running newer versions of the tool on older IDL files
+  // will generate the wrong output. We therefore instead use a known-good
+  // version of the tool on any IDL files from before Chrome 121.
   const toolRevision = typeof majorChrome === "number" && majorChrome < 121
+    // Last commit before the breaking change in Chrome 121.
     ? "c279767649d882b71a14697fe9935d3c890a1ec7"
     : headRevision;
 
