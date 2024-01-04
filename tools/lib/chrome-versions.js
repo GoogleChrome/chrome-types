@@ -145,7 +145,8 @@ export async function chromePublishedStable() {
   const data = /** @type {chromeTypes.VersionHistoryData} */ (await r.json());
 
   for (const version of data.versions) {
-    const numericRelease = +version.version.split('.')[0];
+    const [major] = version.version.split('.');
+    const numericRelease = parseInt(major);
     if (numericRelease) {
       return numericRelease;
     }
