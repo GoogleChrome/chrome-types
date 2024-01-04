@@ -37,7 +37,7 @@ const tagPrefix = 'refs/tags/';
 const repoUrl = 'https://chromium.googlesource.com/chromium/src.git';
 
 
-const omahaProxyUrl = 'https://omahaproxy.appspot.com/all.json';
+const versionHistoryUrl = 'https://versionhistory.googleapis.com/v1/chrome/platforms/all/channels/stable/versions/';
 
 
 /**
@@ -136,24 +136,18 @@ export async function chromeVersions() {
 
 
 /**
- * Fetches and finds the current stable version of Chrome via omahaproxy.
+ * Fetches and finds the current stable version of Chrome.
  *
  * @return {Promise<number>}
  */
 export async function chromePublishedStable() {
-  const r = await fetch(omahaProxyUrl);
-  const data = /** @type {chromeTypes.OmahaProxyData} */ (await r.json());
+  const r = await fetch(versionHistoryUrl);
+  const data = /** @type {chromeTypes.VersionHistoryData} */ (await r.json());
 
-  for (const row of data) {
-    for (const version of row.versions) {
-      if (version.channel !== 'stable') {
-        continue;
-      }
-
-      const numericRelease = +version.version.split('.')[0];
-      if (numericRelease) {
-        return numericRelease;
-      }
+  for (const version of data.versions) {
+    const numericRelease = +version.version.split('.')[0];
+    if (numericRelease) {
+      return numericRelease;
     }
   }
 
