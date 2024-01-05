@@ -61,15 +61,25 @@ const toolsPaths = [
 
 /**
  * @param {{
+ *   majorChrome: number | undefined,
  *   workPath: string,
  *   headRevision: string,
  *   definitionsRevision: string,
  *   cpuLimit: number,
  * }} opts
  */
-async function prepareInTemp({ workPath, headRevision, definitionsRevision, cpuLimit }) {
+async function prepareInTemp({ majorChrome, workPath, headRevision, definitionsRevision, cpuLimit }) {
+  // In Chrome 121, IDL files were changed to use promises for methods by
+  // default. This means running newer versions of the tool on older IDL files
+  // will generate the wrong output. We therefore instead use a known-good
+  // version of the tool on any IDL files from before Chrome 121.
+  const toolRevision = typeof majorChrome === "number" && majorChrome < 121
+    // Last commit before the breaking change in Chrome 121.
+    ? "c279767649d882b71a14697fe9935d3c890a1ec7"
+    : headRevision;
+
   const defitionsPromise = fetchAllTo(workPath, definitionPaths, definitionsRevision);
-  const toolsPromise = fetchAllTo(workPath, toolsPaths, headRevision);
+  const toolsPromise = fetchAllTo(workPath, toolsPaths, toolRevision);
   const definitionsFiles = (await defitionsPromise).flatMap(cand => cand ?? []);
   const toolsFiles = (await toolsPromise).flatMap(cand => cand ?? []);
 
@@ -195,10 +205,11 @@ Options:
   const versions = await chromeVersions();
   const headRevision = versions.head;
 
+  const majorChrome = hasChromeVersion ? Math.ceil(+argv._[0]) : undefined;
+
   /** @type {string} */
   let definitionsRevision;
-  if (hasChromeVersion) {
-    const majorChrome = Math.ceil(+argv._[0]);
+  if (typeof majorChrome === "number") {
     versionData = versions.releases.get(majorChrome) ?? null;
     if (!versionData) {
       throw new Error(`unknown Chrome version: ${argv._[0]}`);
@@ -224,6 +235,7 @@ Options:
   let out;
   try {
     out = await prepareInTemp({
+      majorChrome,
       headRevision,
       definitionsRevision,
       workPath,
