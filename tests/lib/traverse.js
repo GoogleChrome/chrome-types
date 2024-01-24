@@ -152,38 +152,6 @@ test('expandFunctionParams returns', t => {
 
 });
 
-test('expandFunctionParams returns_async does_not_support_promises', t => {
-  const filter = () => true;
-  const tc = new traverse.TraverseContext(filter);
-
-  /** @type {chromeTypes.TypeSpec} */
-  const returnsAsyncFunction = {
-    type: 'function',
-    parameters: [
-      { type: 'string', name: 's' },
-    ],
-    returns_async: {
-      name: 'callback',
-      type: 'function',
-      does_not_support_promises: 'For testing',
-      parameters: [{ type: 'number', name: 'whatever' }],
-    },
-  };
-
-  const returnsAsyncFunctionExpansions = tc.expandFunctionParams(
-    cloneObject(returnsAsyncFunction),
-    'api:test',
-  );
-  // Since this does not support promises, we expect to only get the callback signature.
-  t.deepEqual(returnsAsyncFunctionExpansions, [
-    [
-      { type: 'void', name: 'return' },
-      { type: 'string', name: 's' },
-      expectedOptionalReturnsAsync,
-    ]
-  ]);
-});
-
 test('expandFunctionParams returns_async', t => {
   const filter = () => true;
   const tc = new traverse.TraverseContext(filter);
@@ -228,7 +196,37 @@ test('expandFunctionParams returns_async', t => {
   ]);
 });
 
+test('expandFunctionParams returns_async does_not_support_promises', t => {
+  const filter = () => true;
+  const tc = new traverse.TraverseContext(filter);
 
+  /** @type {chromeTypes.TypeSpec} */
+  const returnsAsyncFunction = {
+    type: 'function',
+    parameters: [
+      { type: 'string', name: 's' },
+    ],
+    returns_async: {
+      name: 'callback',
+      type: 'function',
+      does_not_support_promises: 'For testing',
+      parameters: [{ type: 'number', name: 'whatever' }],
+    },
+  };
+
+  const returnsAsyncFunctionExpansions = tc.expandFunctionParams(
+    cloneObject(returnsAsyncFunction),
+    'api:test',
+  );
+  // Since this does not support promises, we expect to only get the callback signature.
+  t.deepEqual(returnsAsyncFunctionExpansions, [
+    [
+      { type: 'void', name: 'return' },
+      { type: 'string', name: 's' },
+      { ...returnsAsyncFunction.returns_async },
+    ]
+  ]);
+});
 
 test('filter', t => {
   /** @type {(spec: chromeTypes.TypeSpec, id: string) => boolean} */
