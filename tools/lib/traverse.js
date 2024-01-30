@@ -219,17 +219,18 @@ export class TraverseContext {
    * @return {[chromeTypes.NamedTypeSpec, ...chromeTypes.NamedTypeSpec[]][]}
    */
   expandFunctionParams(spec, id) {
-    // If this function uses "returns_asyc", expand it out and call ourselves again to generate
-    // the valid signatures (either just callback or Promise and callback).
+    if (!spec) {
+      return [];
+    }
+
+    // If this function uses "returns_async", expand it out and call ourselves again to generate
+    // the valid signatures for both Promise and callback versions. Note: a few  functions with
+    // asynchronous returns don't support a promise version, in which case withPromise is
+    // undefined here and will return an empty array (handled just above this).
     const expanded = this._maybeExpandFunctionReturnsAsync(spec);
     if (expanded) {
-      if (expanded.withPromise && expanded.withCallback) {
-        return [
-          ...this.expandFunctionParams(expanded.withPromise, id),
-          ...this.expandFunctionParams(expanded.withCallback, id),
-        ];
-      }
       return [
+        ...this.expandFunctionParams(expanded.withPromise, id),
         ...this.expandFunctionParams(expanded.withCallback, id),
       ];
     }
