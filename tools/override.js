@@ -121,6 +121,9 @@ export class RenderOverride extends EmptyRenderOverride {
       case 'api:declarativeNetRequest.getDisabledRuleIds':
       case 'api:declarativeNetRequest.updateStaticRules':
       case 'api:declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_RULES':
+      case 'api:declarativeNetRequest.MAX_NUMBER_OF_UNSAFE_DYNAMIC_RULES':
+      case 'api:declarativeNetRequest.MAX_NUMBER_OF_SESSION_RULES':
+      case 'api:declarativeNetRequest.MAX_NUMBER_OF_UNSAFE_SESSION_RULES':
       case 'api:runtime.onUserScriptConnect':
       case 'api:runtime.onUserScriptMessage':
         // In old versions of Chrome, this is incorrectly marked nodoc.
