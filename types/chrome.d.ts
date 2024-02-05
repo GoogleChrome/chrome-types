@@ -156,6 +156,9 @@ export interface TypeSpec extends SharedSpec {
   // only for top-level namespace types
   noinline_doc?: boolean | 'True';
 
+  // only for returns_async types
+  does_not_support_promises?: string;
+
   // special to mark converted-from-event-to-property, not part of definition
   _event?: boolean;
 }

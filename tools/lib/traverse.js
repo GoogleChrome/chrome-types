@@ -146,6 +146,24 @@ export class TraverseContext {
     if (!returns_async) {
       return undefined;
     }
+
+    /** @type {chromeTypes.TypeSpec} */
+    let callbackParameter = {
+      ...returns_async,
+      type: 'function',
+    };
+    // If this signature doesn't support promises we just convert the "returns_async" field to a
+    // callback.
+    if (returns_async.does_not_support_promises) {
+      return {
+        withCallback: {
+          ...clone,
+          parameters: [...spec.parameters ?? [], callbackParameter],
+        },
+      };
+    }
+
+    // Otherwise this is a promise signature, so we can do a few checks to make sure it is valid.
     if (spec.returns) {
       throw new Error(`got returns_async and returns on function spec: ${JSON.stringify(spec)}`);
     }
@@ -168,15 +186,8 @@ export class TraverseContext {
       };
     }
 
-    // We convert the "returns_async" field to a callback (it has all the same values).
-    // Force it to be optional: by definition if it's omitted then we'll have a Promise-returning
-    // version. This isn't done correctly in the source.
-    /** @type {chromeTypes.TypeSpec} */
-    const callbackParameter = {
-      ...returns_async,
-      type: 'function',
-      optional: true,
-    };
+    // For promise supporting functions, the callback in inheriently optional, so we force that here.
+    callbackParameter.optional = true;
 
     return {
       withPromise: {
@@ -198,7 +209,7 @@ export class TraverseContext {
 
   /**
    * Chrome supports "early" optional parameters, as well as a special "returns_async" parameter
-   * which actually means that this returns a `Promise` OR supports a callback.
+   * which actually means that this API may return a `Promise` OR supports a callback.
    *
    * This expands all possible combinations for rendering as multiple signatures. The return type
    * includes the signature's return in the 0th position, followed by all parameters.
@@ -208,8 +219,14 @@ export class TraverseContext {
    * @return {[chromeTypes.NamedTypeSpec, ...chromeTypes.NamedTypeSpec[]][]}
    */
   expandFunctionParams(spec, id) {
-    // If this is actually a Promise-supporting API, then we call ourselves again to support both
-    // callback and Promise-based versions.
+    if (!spec) {
+      return [];
+    }
+
+    // If this function uses "returns_async", expand it out and call ourselves again to generate
+    // the valid signatures for both Promise and callback versions. Note: a few  functions with
+    // asynchronous returns don't support a promise version, in which case withPromise is
+    // undefined here and will return an empty array (handled just above this).
     const expanded = this._maybeExpandFunctionReturnsAsync(spec);
     if (expanded) {
       return [
