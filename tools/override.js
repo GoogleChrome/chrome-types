@@ -76,19 +76,22 @@ export class RenderOverride extends EmptyRenderOverride {
   #fq;
   #api;
   #history;
+  #majorVersion;
 
   /**
    * @param {{[name: string]: chromeTypes.NamespaceSpec}} api
    * @param {FeatureQuery} fq
    * @param {chromeTypes.HistoricSymbolsPayload?} history
+   * @param {number?} majorVersion
    */
-  constructor(api, fq, history = null) {
+  constructor(api, fq, history = null, majorVersion = null) {
     super();
     const allNamespaceNames = Object.keys(api);
     this.#commentRewriter = buildNamespaceAwareMarkdownRewrite(allNamespaceNames);
     this.#fq = fq;
     this.#api = api;
     this.#history = history;
+    this.#majorVersion = majorVersion;
   }
 
   /**
@@ -114,6 +117,9 @@ export class RenderOverride extends EmptyRenderOverride {
     }
 
     switch (id) {
+      case 'api:extensionTypes.ExecutionWorld':
+      case 'api:contentScripts.ContentScript.world':
+        return !this.#majorVersion || this.#majorVersion >= 111;
       case 'api:contextMenus.OnClickData':
       case 'api:notifications.NotificationBitmap':
       case 'api:sidePanel.getPanelBehavior':

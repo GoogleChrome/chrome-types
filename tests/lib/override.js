@@ -14,6 +14,16 @@ test('setPanelBehavior is visible', t => {
   t.assert(rc.isVisible({ nodoc: true }, 'api:sidePanel.setPanelBehavior'));
 });
 
+test('version specific API is visible in correct versions', t => {
+  // Correctly marked as nodoc in Chrome 110. Should not be visible.
+  const rcNotVisible = new RenderOverride({}, new FeatureQuery({}), null, 110);
+  t.assert(!rcNotVisible.isVisible({ nodoc: true }, 'api:extensionTypes.ExecutionWorld'));
+
+  // Incorrectly marked as nodoc in Chrome 111. nodoc should be ignored.
+  const rcVisible = new RenderOverride({}, new FeatureQuery({}), null, 111);
+  t.assert(rcVisible.isVisible({ nodoc: true }, 'api:extensionTypes.ExecutionWorld'));
+});
+
 test('chrome-install-location tag is added', (t) => {
   const rc = new RenderOverride({}, new FeatureQuery({'api:sidePanel.setPanelBehavior': { location: 'policy' }}), {
     generated: "",
