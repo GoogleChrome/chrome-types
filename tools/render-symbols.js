@@ -58,8 +58,10 @@ This is used internally to generate historic version data for Chrome's APIs.
   /** @type {chromeTypes.ProcessedAPIData} */
   const o = JSON.parse(await getStdin());
 
+  const majorVersion = o.version ? Math.ceil(+o.version.version.split(".")[0]) : undefined;
+
   const featureQuery = new FeatureQuery(o.feature);
-  const renderOverride = new RenderOverride(o.api, featureQuery);
+  const renderOverride = new RenderOverride(o.api, featureQuery, null, majorVersion);
   const renderContext = new RenderContext(renderOverride);
 
   /** @type {Map<string, boolean>} */
