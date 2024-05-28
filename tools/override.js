@@ -134,6 +134,10 @@ export class RenderOverride extends EmptyRenderOverride {
       case 'api:runtime.onUserScriptMessage':
         // In old versions of Chrome, this is incorrectly marked nodoc.
         return true;
+      case 'api:iconVariants':
+        // This is not marked as nodoc, but this is a non-shipping feature so
+        // doesn't make sense in our docs.
+        return false;
     }
     return !spec.nodoc;
   }
