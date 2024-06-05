@@ -120,6 +120,8 @@ export class RenderOverride extends EmptyRenderOverride {
       case 'api:extensionTypes.ExecutionWorld':
       case 'api:contentScripts.ContentScript.world':
         return !this.#majorVersion || this.#majorVersion >= 111;
+      case 'api:action.openPopup':
+        return !this.#majorVersion || this.#majorVersion >= 126;
       case 'api:contextMenus.OnClickData':
       case 'api:notifications.NotificationBitmap':
       case 'api:sidePanel.getPanelBehavior':
