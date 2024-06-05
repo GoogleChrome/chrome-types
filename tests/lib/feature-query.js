@@ -24,3 +24,15 @@ test('extension features are preferred', (t) => {
     { channel: 'stable', min_manifest_version: 3, extension_types: ['extension'] }
   );
 });
+
+test('non-location specific features are preferred', (t) => {
+  const featureQuery = new FeatureQuery({});
+
+  t.deepEqual(
+    featureQuery.mergeComplexFeature([
+      { channel: 'stable', feature_flag: 'my_feature_flag' },
+      { channel: 'stable', location: 'policy' }
+    ]),
+    { channel: 'stable', feature_flag: 'my_feature_flag' }
+  );
+});
