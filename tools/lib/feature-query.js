@@ -73,6 +73,13 @@ export class FeatureQuery {
       return extensionFilter[0];
     }
 
+    // If the availability differs based on install location, use the default
+    // (non policy / component extension) data.
+    const locationFilter = q.filter(({ location }) => !location);
+    if (locationFilter.length === 1) {
+      return locationFilter[0];
+    }
+
     // Features that are unclear here will throw.
   }
 
