@@ -62,7 +62,9 @@ export class FeatureQuery {
 
     // Filter (potentially) by channel. Choose the most released channel (e.g., 'stable' over 'beta').
     const bestChannel = q.reduce((channel, spec) => mostReleasedChannel(channel, spec.channel ?? "stable"), /** @type {chromeTypes.Channel | undefined} */(undefined));
-    const bestChannelFilter = q.filter(({ channel }) => channel === bestChannel || (bestChannel === "stable" && typeof channel === "undefined"));
+    const bestChannelFilter = q.filter(({ channel }) => {
+      return channel === bestChannel || (bestChannel === "stable" && !channel);
+    });
     if (bestChannelFilter.length === 1) {
       return bestChannelFilter[0];
     }
