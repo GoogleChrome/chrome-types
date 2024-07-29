@@ -61,8 +61,10 @@ export class FeatureQuery {
     }
 
     // Filter (potentially) by channel. Choose the most released channel (e.g., 'stable' over 'beta').
-    const bestChannel = q.reduce((channel, spec) => mostReleasedChannel(channel, spec.channel), /** @type {chromeTypes.Channel | undefined} */(undefined));
-    const bestChannelFilter = q.filter(({ channel }) => channel === bestChannel);
+    const bestChannel = q.reduce((channel, spec) => mostReleasedChannel(channel, spec.channel ?? "stable"), /** @type {chromeTypes.Channel | undefined} */(undefined));
+    const bestChannelFilter = q.filter(({ channel }) => {
+      return channel === bestChannel || (bestChannel === "stable" && !channel);
+    });
     if (bestChannelFilter.length === 1) {
       return bestChannelFilter[0];
     }
@@ -241,6 +243,13 @@ function basicFilter(f) {
     if (!ok) {
       return false;
     }
+  }
+
+  // An API only exposed to "web_page" contexts (such as the APIs exposed to
+  // the Chrome Web Store) are unlikely to be ones we want to show in the
+  // documentation.
+  if (f.contexts?.length === 1 && f.contexts[0] === "web_page") {
+    return false;
   }
 
   return true;
