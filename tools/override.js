@@ -137,6 +137,7 @@ export class RenderOverride extends EmptyRenderOverride {
         // In old versions of Chrome, this is incorrectly marked nodoc.
         return true;
       case 'api:iconVariants':
+      case 'api:experimentalAiData':
         // This is not marked as nodoc, but this is a non-shipping feature so
         // doesn't make sense in our docs.
         return false;
