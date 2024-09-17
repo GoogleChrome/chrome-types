@@ -36,7 +36,8 @@ export interface ProcessedAPIData {
 
 
 // FIXME: This should have at least one value.
-export type MinArray<T> = T[];
+// Done, this now requires at least 1 item in the array.
+export type MinArray<T> = [T, ...T[]];
 export type Channel = 'stable' | 'beta' | 'dev' | 'canary' | 'trunk';
 export type Platform = 'chromeos' | 'lacros' | 'linux' | 'mac' | 'win';
 export type Context = 'blessed_extension' | 'blessed_web_page' | 'content_script' | 'lock_screen_extension' | 'web_page' | 'webui' | 'webui_untrusted' | 'unblessed_extension';
