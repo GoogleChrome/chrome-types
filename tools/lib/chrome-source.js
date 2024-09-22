@@ -33,7 +33,7 @@ import fetch from 'node-fetch';
  * @param {string} chromePath
  * @return {string}
  */
-function urlFor(revision, chromePath) {
+export function urlFor(revision, chromePath) {
   return `https://chromium.googlesource.com/chromium/src/+archive/${revision}/${chromePath}.tar.gz`;
 }
 
@@ -46,7 +46,7 @@ function urlFor(revision, chromePath) {
  * @param {string} revision revision to fetch
  * @return {Promise<(string[]?)[]>} files written for paths, null for skipped
  */
-export async function fetchAllTo(targetPath, chromePaths, revision) {
+export function fetchAllTo(targetPath, chromePaths, revision) {
   // This removes any trailing "/" from the paths.
   chromePaths = chromePaths.map(chromePath => path.join(chromePath, '.'));
 
