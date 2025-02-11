@@ -178,8 +178,9 @@ test('expandFunctionParams returns_async', t => {
   const returnsAsyncFunctionExpansions = tc.expandFunctionParams(
     cloneObject(returnsAsyncFunction),
     'api:test',
+    true
   );
-  t.deepEqual(returnsAsyncFunctionExpansions, [
+  t.deepEqual([
     [
       {
         $ref: 'Promise',
@@ -193,7 +194,7 @@ test('expandFunctionParams returns_async', t => {
       { type: 'string', name: 's' },
       expectedOptionalReturnsAsync,
     ]
-  ]);
+  ], returnsAsyncFunctionExpansions);
 });
 
 test('expandFunctionParams returns_async does_not_support_promises', t => {

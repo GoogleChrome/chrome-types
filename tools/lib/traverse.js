@@ -136,7 +136,7 @@ export class TraverseContext {
 
   /**
    * @param {chromeTypes.TypeSpec} spec of the function which itself has returns_async
-   * @param {boolean} isPromiseSupportVisible If we should hide the promise return type
+   * @param {boolean} isPromiseSupportVisible If we should show the promise return type
    * @return {{
    *   withPromise: chromeTypes.TypeSpec,
    *   withCallback: chromeTypes.TypeSpec,
@@ -218,7 +218,7 @@ export class TraverseContext {
    *
    * @param {chromeTypes.TypeSpec} spec
    * @param {string} id
-   * @param {boolean} isPromiseSupportVisible If we should hide the promise return type
+   * @param {boolean} isPromiseSupportVisible If we should show the promise return type
    * @return {[chromeTypes.NamedTypeSpec, ...chromeTypes.NamedTypeSpec[]][]}
    */
   expandFunctionParams(spec, id, isPromiseSupportVisible) {
