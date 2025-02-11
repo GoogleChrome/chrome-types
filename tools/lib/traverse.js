@@ -136,13 +136,13 @@ export class TraverseContext {
 
   /**
    * @param {chromeTypes.TypeSpec} spec of the function which itself has returns_async
-   * @param {boolean} promiseSupportVisible If we should hide the promise return type
+   * @param {boolean} isPromiseSupportVisible If we should hide the promise return type
    * @return {{
    *   withPromise: chromeTypes.TypeSpec,
    *   withCallback: chromeTypes.TypeSpec,
    * }=}
    */
-  _maybeExpandFunctionReturnsAsync(spec, promiseSupportVisible) {
+  _maybeExpandFunctionReturnsAsync(spec, isPromiseSupportVisible) {
     const { returns_async, ...clone } = spec;
     if (!returns_async) {
       return undefined;
@@ -156,7 +156,7 @@ export class TraverseContext {
 
     // If this signature doesn't support promises, or promise support is hidden
     // in this version, we just convert the "returns_async" field to a callback.
-    if (returns_async.does_not_support_promises || !promiseSupportVisible) {
+    if (returns_async.does_not_support_promises || !isPromiseSupportVisible) {
       return {
         withCallback: {
           ...clone,
@@ -218,10 +218,10 @@ export class TraverseContext {
    *
    * @param {chromeTypes.TypeSpec} spec
    * @param {string} id
-   * @param {boolean} promiseSupportVisible If we should hide the promise return type
+   * @param {boolean} isPromiseSupportVisible If we should hide the promise return type
    * @return {[chromeTypes.NamedTypeSpec, ...chromeTypes.NamedTypeSpec[]][]}
    */
-  expandFunctionParams(spec, id, promiseSupportVisible) {
+  expandFunctionParams(spec, id, isPromiseSupportVisible) {
     if (!spec) {
       return [];
     }
@@ -230,11 +230,11 @@ export class TraverseContext {
     // the valid signatures for both Promise and callback versions. Note: a few  functions with
     // asynchronous returns don't support a promise version, in which case withPromise is
     // undefined here and will return an empty array (handled just above this).
-    const expanded = this._maybeExpandFunctionReturnsAsync(spec, promiseSupportVisible);
+    const expanded = this._maybeExpandFunctionReturnsAsync(spec, isPromiseSupportVisible);
     if (expanded) {
       return [
-        ...this.expandFunctionParams(expanded.withPromise, id, promiseSupportVisible),
-        ...this.expandFunctionParams(expanded.withCallback, id, promiseSupportVisible),
+        ...this.expandFunctionParams(expanded.withPromise, id, isPromiseSupportVisible),
+        ...this.expandFunctionParams(expanded.withCallback, id, isPromiseSupportVisible),
       ];
     }
 
