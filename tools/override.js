@@ -40,6 +40,10 @@ export class EmptyRenderOverride {
     return true;
   }
 
+  isPromiseSupportVisible(spec, id) {
+    return true;
+  }
+
   /**
    * @return {string | undefined}
    */
@@ -143,6 +147,25 @@ export class RenderOverride extends EmptyRenderOverride {
         return false;
     }
     return !spec.nodoc;
+  }
+
+  /**
+   * @param {chromeTypes.TypeSpec} spec
+   * @param {string} id
+   */
+  isPromiseSupportVisible(spec, id) {
+    switch (id) {
+      case 'api:storage.StorageArea.get':
+      case 'api:storage.StorageArea.set':
+      case 'api:storage.StorageArea.remove':
+      case 'api:storage.StorageArea.clear':
+      case 'api:storage.StorageArea.getBytesInUse':
+        // We added and then reverted a commit to land promise support in 88.
+        // The commit which eventually shipped to land this was in Chrome 95.
+        return !this.#majorVersion || this.#majorVersion >= 95;
+      default:
+        return true;
+    }
   }
 
   /**
