@@ -39,7 +39,7 @@ jobs:
 
       # Cache the output of this action.
       # As of Chrome 95, this release takes ~5 minutes on GitHub without this.
-      - uses: actions/cache@v2
+      - uses: actions/cache@v4
         with:
           key: ${{ runner.os }}-build-cache
           path: .cache
