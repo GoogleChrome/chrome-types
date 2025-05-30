@@ -79,7 +79,7 @@ export async function fetchAllTo(targetPath, chromePaths, revision) {
 export async function fetchTo(targetPath, chromePath, revision) {
   const url = urlFor(revision, chromePath);
 
-  const r = await fetch(url);
+  const r = await fetch(url, { compress: false });
   if (!r.ok) {
     // HACK: Old platform_apps folder is missing. Skip for now.
     if (r.status === 400 && chromePath === 'chrome/common/apps/platform_apps/api') {
