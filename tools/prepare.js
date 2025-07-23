@@ -54,7 +54,6 @@ const definitionPaths = [
 const toolsPaths = [
   'tools/json_schema_compiler',
   'tools/json_comment_eater',
-  'ppapi/generators',
   'third_party/ply',
 ];
 
@@ -73,13 +72,20 @@ async function prepareInTemp({ majorChrome, workPath, headRevision, definitionsR
   // default. This means running newer versions of the tool on older IDL files
   // will generate the wrong output. We therefore instead use a known-good
   // version of the tool on any IDL files from before Chrome 121.
-  const toolRevision = typeof majorChrome === "number" && majorChrome < 121
+  const useOldToolRevision = typeof majorChrome === "number" && majorChrome < 121;
+
+  const toolRevision = useOldToolRevision
     // Last commit before the breaking change in Chrome 121.
     ? "c279767649d882b71a14697fe9935d3c890a1ec7"
     : headRevision;
 
   const defitionsPromise = fetchAllTo(workPath, definitionPaths, definitionsRevision);
-  const toolsPromise = fetchAllTo(workPath, toolsPaths, toolRevision);
+  const toolsPromise = fetchAllTo(
+    workPath,
+    // In newer versions of the tool, generators is vendored into the `json_schema_compiler` directory.
+    useOldToolRevision ? [...toolsPaths, 'ppapi/generators'] : toolsPaths,
+    toolRevision
+  );
   const definitionsFiles = (await defitionsPromise).flatMap(cand => cand ?? []);
   const toolsFiles = (await toolsPromise).flatMap(cand => cand ?? []);
 
