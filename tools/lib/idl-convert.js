@@ -26,6 +26,7 @@ import { readFromCache, writeToCache } from './cache-helper.js';
 
 const execFile = promisify(childProcess.execFile);
 const commandPath = 'tools/json_schema_compiler/idl_schema.py';
+const commandPathWebIdl = 'tools/json_schema_compiler/web_idl_schema.py';
 
 
 const idlCacheDays = 12;
@@ -38,7 +39,7 @@ const idlCacheExpiry = idlCacheDays * 24 * 60 * 60 * 1000;
  * @return {Promise<{cache: boolean, o: Object}>}
  */
 export async function convertFromIdl(root, filename) {
-  const args = [commandPath, filename];
+  const args = filename.endsWith('webidl') ? [commandPathWebIdl, filename] : [commandPath, filename];
 
   // Find the MD5 of the input IDL to match it in cache.
   const p = path.join(root, filename);
