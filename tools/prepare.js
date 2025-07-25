@@ -52,6 +52,7 @@ const definitionPaths = [
  * Fetch these folders to run the IDL => JSON converter.
  */
 const toolsPaths = [
+  'tools/idl_parser',
   'tools/json_schema_compiler',
   'tools/json_comment_eater',
   'third_party/ply',
@@ -92,7 +93,7 @@ async function prepareInTemp({ majorChrome, workPath, headRevision, definitionsR
   log.warn(`Fetched ${chalk.blue(definitionsFiles.length)} definitions files (IDL/JSON)`);
   log.warn(`Fetched ${chalk.blue(toolsFiles.length)} tools files to convert IDL => JSON`);
 
-  const allDefinitions = fastGlob.sync('**/*.{json,idl}', { cwd: workPath }).filter(cand => {
+  const allDefinitions = fastGlob.sync('**/*.{json,idl,webidl}', { cwd: workPath }).filter(cand => {
     if (cand.includes('/test/') || cand.includes('/test_') || cand.startsWith('tools/')) {
       return false;
     }
@@ -116,7 +117,7 @@ async function prepareInTemp({ majorChrome, workPath, headRevision, definitionsR
     /** @type {Object} */
     let o;
 
-    if (ext === '.idl') {
+    if (ext === '.idl' || ext === '.webidl') {
       await conversionLimit.acquire();
       try {
         let cache;
