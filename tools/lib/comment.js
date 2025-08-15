@@ -38,7 +38,7 @@ const backtickSymbolRegexp = /`([\w\.]+)`/g;
  * @param {string} text
  * @param {RegExp} re
  */
-function regexpParts(text, re) {
+export function regexpParts(text, re) {
   /** @type {string[]} */
   const parts = [];
 
@@ -63,7 +63,7 @@ function regexpParts(text, re) {
  * @param {string[]} parts
  * @param {(s: string) => string} helper
  */
-function transformEven(parts, helper) {
+export function transformEven(parts, helper) {
   return parts.map((s, i) => {
     if ((i % 2) === 0) {
       return helper(s);
@@ -153,7 +153,7 @@ const hrefRegexp = /<a(\s+[^>]*?)href\s*=\s*(["'])(.*?)\2(.*?)>(.*?)<\/a>/gms;
  * @param {string} raw
  * @return {boolean} is this probably a URL?
  */
-function isUrl(raw) {
+export function isUrl(raw) {
   try {
     new URL(raw);
     return true;
