@@ -28,11 +28,6 @@ import { FeatureQuery } from './lib/feature-query.js';
 import { namespaceNameFromId, parentId } from './lib/traverse.js';
 import { isDeepEqual } from './lib/equal.js';
 
-// APIs that should never generate an @since annotation. For example, some APIs
-// implemented entirely in the renderer do not require IDL files, and therefore
-// we add them to the IDL files late even though the API has always existed.
-const SINCE_EXCLUSIONS = ["api:devtools.panels.setOpenResourceHandler.callback.lineNumber"];
-
 /**
  * Empty implementation of {@link overrideTypes.RenderOverride}. For tests.
  * 
@@ -611,10 +606,6 @@ export class RenderOverride extends EmptyRenderOverride {
    */
   sinceTextFor(spec, id) {
     if (!this.#history) {
-      return {};
-    }
-
-    if (SINCE_EXCLUSIONS.includes(id)) {
       return {};
     }
 

@@ -61,7 +61,7 @@ Options:
   let history = null;
 
   if (argv.symbols) {
-    history = JSON.parse(fs.readFileSync(argv.symbols, 'utf-8'));
+    history = loadHistory(argv.symbols);
   }
 
   const renderAt = new Date();
@@ -124,6 +124,24 @@ Options:
   log.warn(`Built ${argv.all ? 'all' : 'MV3+'} types, generated ${out.length} bytes of .d.ts`);
 
   process.stdout.write(out);
+}
+
+function loadHistory(path) {
+  /** @type {chromeTypes.HistoricSymbolsPayload} */
+  const history = JSON.parse(fs.readFileSync(path, 'utf-8'));
+
+  // These APIs were missing from the schema for a long time, so we need to
+  // manually patch the history.
+  history.symbols["api:devtools.panels.Theme"] = { low: 99, high: history.high };
+  history.symbols["api:devtools.panels.setThemeChangeHandler"] = { low: 99, high: history.high };
+  history.symbols["api:devtools.panels.setThemeChangeHandler.callback"] = { low: 99, high: history.high };
+  history.symbols["api:devtools.panels.setThemeChangeHandler.callback.theme"] = { low: 99, high: history.high };
+
+  // This parameter has always been part of setOpenResourceHandler but was
+  // missing from the schema.
+  history.symbols["api:devtools.panels.setOpenResourceHandler.callback.lineNumber"] = { high: history.high };
+
+  return history;
 }
 
 
