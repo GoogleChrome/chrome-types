@@ -16,7 +16,7 @@
     "@types/tar-stream": "^2.2.1",
     "@types/tmp": "^0.2.1",
     "@types/turndown": "^5.0.1",
-    "check-code-coverage": "^1.10.0"
+    "check-code-coverage": "^1.10.5"
   },
   "dependencies": {
     "assert": "^2.0.0",
