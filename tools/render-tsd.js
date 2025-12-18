@@ -141,6 +141,9 @@ function loadHistory(path) {
   // missing from the schema.
   history.symbols["api:devtools.panels.setOpenResourceHandler.callback.lineNumber"] = { high: history.high };
 
+  // This parameter was missing for a long time.
+  history.symbols["api:runtime.onMessage.sendResponse.response"] = { high: history.high };
+
   return history;
 }
 
