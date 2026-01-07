@@ -175,7 +175,7 @@ export class RenderOverride extends EmptyRenderOverride {
    * @param {string} id
    */
   isPlatformAppsOnly(id) {
-    return this.#fq.checkFeature(id, (f) => f.extension_types?.length === 1 && f.extension_types[0] === "platform_apps");
+    return !this.#fq.checkFeature(id, (f) => [...f.extension_types ?? []].some((t) => t !== "platform_app"));
   }
 
   /**
