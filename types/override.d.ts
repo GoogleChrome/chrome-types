@@ -34,6 +34,11 @@ export interface RenderOverride {
   isPromiseSupportVisible(spec: chromeTypes.TypeSpec, id: string): boolean;
 
   /**
+   * If the type is only available for platform apps.
+   */
+  isPlatformAppsOnly(id: string): boolean;
+
+  /**
    * These are the template overrides for interface definitions within Chrome's extensions codebase.
    *
    * Chrome has no way of specifying that a type might be templated, so this can't upgrade a passed

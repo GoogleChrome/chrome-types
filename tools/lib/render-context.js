@@ -290,7 +290,7 @@ export class RenderContext {
 
     // Don't invoke symbol callbacks while we render this, because there's many possible expansions.
     this.#skipCallbacks(() => {
-      const expansions = this.#t.expandFunctionParams(spec, id, this.#override.isPromiseSupportVisible(spec, id));
+      const expansions = this.#t.expandFunctionParams(spec, id, this.#override.isPromiseSupportVisible(spec, id), this.#override.isPlatformAppsOnly(id));
 
       // Record all possible expansions, except void, which isn't rendered / does not exist.
       expansions.flat().forEach((param) => {
