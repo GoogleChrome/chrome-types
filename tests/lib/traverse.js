@@ -165,6 +165,7 @@ test('expandFunctionParams returns_async', t => {
     returns_async: {
       name: 'callback',
       type: 'function',
+      description: undefined,
       parameters: [{ type: 'number', name: 'whatever' }],
     },
   };
@@ -184,6 +185,7 @@ test('expandFunctionParams returns_async', t => {
     [
       {
         $ref: 'Promise',
+        description: undefined,
         name: 'return',
         value: ['return', { name: 'whatever', type: 'number' }],
       },
