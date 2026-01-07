@@ -191,11 +191,19 @@ export class TraverseContext {
     // For promise supporting functions, the callback in inheriently optional, so we force that here.
     callbackParameter.optional = true;
 
+    // In legacy .idl files, the only way to add a description to the return
+    // value is to add it to the |callback| parameter. However, since the
+    // comment is usually of the form "Promise that resolves with..." it
+    // doesn't make sense to show for the callback in typedoc.
+    const returnDescription = callbackParameter.description;
+    callbackParameter.description = undefined;
+
     return {
       withPromise: {
         ...clone,
         returns: {
           $ref: 'Promise',
+          description: returnDescription,
           value: [
             'return',
             singleReturnsAsyncParam,
