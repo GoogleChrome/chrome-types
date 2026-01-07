@@ -137,12 +137,13 @@ export class TraverseContext {
   /**
    * @param {chromeTypes.TypeSpec} spec of the function which itself has returns_async
    * @param {boolean} isPromiseSupportVisible If we should show the promise return type
+   * @param {boolean} isPlatformAppsOnly If this is a platform apps only type
    * @return {{
    *   withPromise: chromeTypes.TypeSpec,
    *   withCallback: chromeTypes.TypeSpec,
    * }=}
    */
-  _maybeExpandFunctionReturnsAsync(spec, isPromiseSupportVisible) {
+  _maybeExpandFunctionReturnsAsync(spec, isPromiseSupportVisible, isPlatformAppsOnly) {
     const { returns_async, ...clone } = spec;
     if (!returns_async) {
       return undefined;
@@ -195,8 +196,13 @@ export class TraverseContext {
     // value is to add it to the |callback| parameter. However, since the
     // comment is usually of the form "Promise that resolves with..." it
     // doesn't make sense to show for the callback in typedoc.
-    const returnDescription = callbackParameter.description;
+    let returnDescription = callbackParameter.description;
     callbackParameter.description = undefined;
+
+    if (isPlatformAppsOnly) {
+      // Currently we haven't made all of these descriptions promise centric, so they are sometimes nonsensical.
+      returnDescription = undefined;
+    }
 
     return {
       withPromise: {
@@ -227,9 +233,10 @@ export class TraverseContext {
    * @param {chromeTypes.TypeSpec} spec
    * @param {string} id
    * @param {boolean} isPromiseSupportVisible If we should show the promise return type
+   * @param {boolean} isPlatformAppsOnly If this is a platform apps only type
    * @return {[chromeTypes.NamedTypeSpec, ...chromeTypes.NamedTypeSpec[]][]}
    */
-  expandFunctionParams(spec, id, isPromiseSupportVisible) {
+  expandFunctionParams(spec, id, isPromiseSupportVisible, isPlatformAppsOnly) {
     if (!spec) {
       return [];
     }
@@ -238,11 +245,11 @@ export class TraverseContext {
     // the valid signatures for both Promise and callback versions. Note: a few  functions with
     // asynchronous returns don't support a promise version, in which case withPromise is
     // undefined here and will return an empty array (handled just above this).
-    const expanded = this._maybeExpandFunctionReturnsAsync(spec, isPromiseSupportVisible);
+    const expanded = this._maybeExpandFunctionReturnsAsync(spec, isPromiseSupportVisible, isPlatformAppsOnly);
     if (expanded) {
       return [
-        ...this.expandFunctionParams(expanded.withPromise, id, isPromiseSupportVisible),
-        ...this.expandFunctionParams(expanded.withCallback, id, isPromiseSupportVisible),
+        ...this.expandFunctionParams(expanded.withPromise, id, isPromiseSupportVisible, isPlatformAppsOnly),
+        ...this.expandFunctionParams(expanded.withCallback, id, isPromiseSupportVisible, isPlatformAppsOnly),
       ];
     }
 

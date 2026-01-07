@@ -43,6 +43,10 @@ export class EmptyRenderOverride {
     return true;
   }
 
+  isPlatformAppsOnly(id) {
+    return false;
+  }
+
   /**
    * @return {string | undefined}
    */
@@ -165,6 +169,13 @@ export class RenderOverride extends EmptyRenderOverride {
       default:
         return true;
     }
+  }
+
+  /**
+   * @param {string} id
+   */
+  isPlatformAppsOnly(id) {
+    return this.#fq.checkFeature(id, (f) => f.extension_types?.length === 1 && f.extension_types[0] === "platform_apps");
   }
 
   /**
