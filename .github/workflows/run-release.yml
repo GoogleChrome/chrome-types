@@ -64,3 +64,8 @@ jobs:
           registry: https://wombat-dressing-room.appspot.com
           package: ./dist/package.json
 
+      - name: Upload history.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: history
+          path: .cache/history.json
