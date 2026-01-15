@@ -133,6 +133,8 @@ export class RenderOverride extends EmptyRenderOverride {
       case 'api:notifications.NotificationBitmap':
       case 'api:sidePanel.getPanelBehavior':
       case 'api:sidePanel.setPanelBehavior':
+      case 'api:sidePanel.onClosed':
+      case 'api:sidePanel.close':
       case 'api:declarativeNetRequest.getDisabledRuleIds':
       case 'api:declarativeNetRequest.updateStaticRules':
       case 'api:declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_RULES':
