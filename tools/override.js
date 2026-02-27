@@ -143,6 +143,8 @@ export class RenderOverride extends EmptyRenderOverride {
       case 'api:declarativeNetRequest.MAX_NUMBER_OF_UNSAFE_SESSION_RULES':
       case 'api:runtime.onUserScriptConnect':
       case 'api:runtime.onUserScriptMessage':
+      case 'api:tabs.Tab.splitViewId':
+      case 'api:tabs.SPLIT_VIEW_ID_NONE':
         // In old versions of Chrome, this is incorrectly marked nodoc.
         return true;
       case 'api:iconVariants':
