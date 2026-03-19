@@ -145,7 +145,7 @@ export interface TypeSpec extends SharedSpec {
   returns?: TypeSpec;
   returns_async?: TypeSpec;
 
-  enum?: string[] | number[] | { name: string, description?: string }[];
+  enum?: string[] | number[] | { name: string, nodoc?: boolean, description?: string }[];
   choices?: TypeSpec[];
 
   // for type='array'

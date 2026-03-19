@@ -404,7 +404,7 @@ export class RenderContext {
       }
 
       /** @type {(string | number)[]} */
-      const primitiveOnly = spec.enum.map((raw) => {
+      const primitiveOnly = spec.enum.filter((raw) => typeof raw !== "object" || !raw.nodoc).map((raw) => {
         if (typeof raw === 'object') {
           return raw.name;
         }
@@ -691,7 +691,7 @@ export class RenderContext {
     // We don't have a great way to document these otherwise.
     if (spec.enum) {
       for (const e of spec.enum) {
-        if (typeof e === 'object' && e.description) {
+        if (typeof e === 'object' && e.description && !e.nodoc) {
           const value = `${JSON.stringify(e.name)} ${sanitizeCommentData(e.description)}`;
           tags.push({ name: 'chrome-enum', value });
         }
