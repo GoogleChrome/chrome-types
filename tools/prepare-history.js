@@ -73,6 +73,7 @@ Options:
   if (argv.input) {
     /** @type {chromeTypes.HistoricSymbolsPayload} */
     const o = JSON.parse(await getStdin());
+    log.info("History:", JSON.stringify({ revision: o.revision, high: o.high, low: o.low }));
     if (o.revision === expectedRevision) {
       lowVersion = o.high + 1;
       outputLowVersion = o.low;  // we didn't actually change low version

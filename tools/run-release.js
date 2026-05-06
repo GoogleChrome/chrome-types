@@ -66,7 +66,7 @@ function typescriptCheck(p) {
 
 log('Maybe updating version data...');
 const prepareHistoryOptions = {};
-const existingHistory = readFromCache('history.json');
+const existingHistory = readFromCache('history.json', Number.MAX_SAFE_INTEGER);
 if (existingHistory) {
   prepareHistoryOptions.input = existingHistory;
   prepareHistoryOptions.args = [ '-i' ];
