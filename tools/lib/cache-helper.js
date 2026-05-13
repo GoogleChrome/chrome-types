@@ -30,14 +30,14 @@ export const { pathname: cacheDir } = new URL('../../.cache', import.meta.url);
 
 /**
  * @param {string} name to fetch
- * @param {number=} expiry default 48hr
+ * @param {number|null} expiry default 48hr
  */
 export function readFromCache(name, expiry = 48 * hourMs) {
   const p = path.join(cacheDir, name);
 
   try {
     const stat = fs.statSync(p);
-    if (stat.mtimeMs < +(new Date) - expiry) {
+    if (expiry !== null && stat.mtimeMs < +(new Date) - expiry) {
       return null;
     }
   } catch {
