@@ -79,7 +79,7 @@ export async function fetchAllTo(targetPath, chromePaths, revision) {
 export async function fetchTo(targetPath, chromePath, revision) {
   const url = urlFor(revision, chromePath);
 
-  const r = await fetch(url, { compress: false });
+  const r = await fetch(url);
   if (!r.ok) {
     // HACK: Old platform_apps folder is missing. Skip for now.
     if (r.status === 400 && chromePath === 'chrome/common/apps/platform_apps/api') {
@@ -88,7 +88,7 @@ export async function fetchTo(targetPath, chromePath, revision) {
     throw new Error(`could not fetch URL from Chromium: ${url}, ${r.statusText} (${r.status})`);
   }
 
-  const arrayBuffer = await fetch(url).then(r => r.arrayBuffer());
+  const arrayBuffer = await r.arrayBuffer();
   const bytes = await new Promise((resolve, reject) => {
     zlib.gunzip(arrayBuffer, (err, result) => {
       err ? reject(err) : resolve(result);
