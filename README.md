@@ -20,7 +20,7 @@ It prepares a ".d.ts" file for Chrome's HEAD revision, annotated with informatio
 
 ## Usage
 
-This repository is mostly intended as an implementation detail of the https://developer.chrome.com site and for publishing [chrome-types](https://www.npmjs.com/package/chrome-types) on NPM, which happens automaticalty as part of a GitHub Action.
+This repository is mostly intended as an implementation detail of the https://developer.chrome.com site and for publishing [chrome-types](https://www.npmjs.com/package/chrome-types) on NPM, which happens automatically as part of a GitHub Action.
 You can run it yourself, but if you're just interested in the generated types, you don't need to.
 
 Run "tools/prepare.js" to generate a bundle of JSON representing Chrome's extensions at a specific release.
