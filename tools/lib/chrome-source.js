@@ -25,7 +25,6 @@ import tar from 'tar-stream';
 import * as stream from 'stream';
 import * as path from 'path';
 import { promises as fsPromises } from 'fs';
-import fetch from 'node-fetch';
 
 
 /**
@@ -54,15 +53,22 @@ export async function fetchAllTo(targetPath, chromePaths, revision) {
   // have (because the compressed version of a higher folder was fetched).
   chromePaths.sort();
 
-  return Promise.all(chromePaths.map(async (chromePath, i) => {
+  const requests = [];
+
+  for (const [i, chromePath] of chromePaths.entries()) {
     const isSatisfied = chromePaths.slice(0, i).some(previous => {
       return chromePath.startsWith(previous + '/');
     });
     if (isSatisfied) {
-      return null;  // we'll already have something for this
+      continue;  // we'll already have something for this
     }
-    return fetchTo(targetPath, chromePath, revision);
-  }));
+    requests.push(fetchTo(targetPath, chromePath, revision));
+
+    // Small wait to attempt to avoid rate limiting.
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+
+  return Promise.all(requests);
 }
 
 

@@ -80,15 +80,15 @@ async function prepareInTemp({ majorChrome, workPath, headRevision, definitionsR
     ? "c279767649d882b71a14697fe9935d3c890a1ec7"
     : headRevision;
 
-  const defitionsPromise = fetchAllTo(workPath, definitionPaths, definitionsRevision);
-  const toolsPromise = fetchAllTo(
+  const defitionsResult = await fetchAllTo(workPath, definitionPaths, definitionsRevision);
+  const toolsResult = await fetchAllTo(
     workPath,
     // In newer versions of the tool, generators is vendored into the `json_schema_compiler` directory.
     useOldToolRevision ? [...toolsPaths, 'ppapi/generators'] : toolsPaths,
     toolRevision
   );
-  const definitionsFiles = (await defitionsPromise).flatMap(cand => cand ?? []);
-  const toolsFiles = (await toolsPromise).flatMap(cand => cand ?? []);
+  const definitionsFiles = defitionsResult.flatMap(cand => cand ?? []);
+  const toolsFiles = toolsResult.flatMap(cand => cand ?? []);
 
   log.warn(`Fetched ${chalk.blue(definitionsFiles.length)} definitions files (IDL/JSON)`);
   log.warn(`Fetched ${chalk.blue(toolsFiles.length)} tools files to convert IDL => JSON`);

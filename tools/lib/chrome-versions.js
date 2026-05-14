@@ -25,7 +25,6 @@ import { promisify } from 'util';
 import * as childProcess from 'child_process';
 import semver from 'semver';
 import * as chromeTypes from '../../types/chrome.js';
-import fetch from 'node-fetch';
 
 
 const execFile = promisify(childProcess.execFile);

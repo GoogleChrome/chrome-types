@@ -30,7 +30,6 @@ import log from 'fancy-log';
 import { readFromCache, writeToCache } from './lib/cache-helper.js';
 import semver from 'semver';
 import { generateLinesHash } from './lib/line-hash.js';
-import fetch from 'node-fetch';
 
 
 const distDir = path.join(rootDir, 'dist');
