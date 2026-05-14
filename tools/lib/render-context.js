@@ -20,11 +20,16 @@ import * as overrideTypes from '../../types/override.js';
 import { RenderBuffer } from './buffer.js';
 import { isValidToken } from './js-internals.js';
 import { last, TraverseContext } from './traverse.js';
+import { readFileSync } from 'fs';
+import log from 'fancy-log';
 
 
 export class RenderContext {
   #override;
   #t;
+
+  /** @type {string[]} */
+  #knownNamespaces;
 
   /** @type {chromeTypes.SpecCallback[]} */
   #callbacks = [];
@@ -53,6 +58,7 @@ export class RenderContext {
 
     const isVisible = override.isVisible.bind(override);
     this.#t = new TraverseContext(isVisible);
+    this.#knownNamespaces = readFileSync("tools/lib/known-namespaces.txt").toString("utf8").split("\n");
   }
 
   /**
@@ -94,6 +100,11 @@ export class RenderContext {
   maybeRenderNamespace(namespace) {
     const toplevel = `api:${namespace.namespace}`;
     if (!this.#override.isVisible(namespace, toplevel)) {
+      return '';
+    }
+
+    if (!this.#knownNamespaces.includes(namespace.namespace)) {
+      log.warn('Skipping unknown namespace:', namespace.namespace);
       return '';
     }
 
