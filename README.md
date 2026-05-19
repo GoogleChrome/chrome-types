@@ -30,3 +30,21 @@ See [the wiki](https://github.com/GoogleChrome/chrome-types/wiki) for more.
 Running the code requires Node 16+ as well as a working version of Python (3 is preferred, but 2.7+ should work) installed on your system.
 This has only been tested on Linux and macOS.
 Python is used to convert Chromium's internal IDL format to JSON.
+
+**Steps**
+
+1. Add library as a dependency.
+   ```bash
+   npm i chrome-types --save-dev
+   ```
+3. Update compiler options in `tsconfig.json`
+
+    ```patch
+    {
+        "compilerOptions": {
+          ...
+    +     "types": ["chrome-types"]
+          ...
+        },
+    }
+    ```
