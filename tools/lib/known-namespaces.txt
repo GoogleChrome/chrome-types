@@ -68,6 +68,7 @@ management
 manifestTypes
 mdns
 mediaGalleries
+mimeHandler
 networking.onc
 notifications
 oauth2
