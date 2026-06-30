@@ -129,6 +129,8 @@ export class RenderOverride extends EmptyRenderOverride {
         return !this.#majorVersion || this.#majorVersion >= 111;
       case 'api:action.openPopup':
         return !this.#majorVersion || this.#majorVersion >= 127;
+      case 'api:mimeHandler':
+        return !this.#majorVersion || this.#majorVersion >= 151;
       case 'api:contextMenus.OnClickData':
       case 'api:notifications.NotificationBitmap':
       case 'api:sidePanel.getPanelBehavior':
