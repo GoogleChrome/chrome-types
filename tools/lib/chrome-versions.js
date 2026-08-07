@@ -64,6 +64,28 @@ function splitChromeRelease(tag) {
   return { release: major, rest };
 }
 
+async function getHeadRevision() {
+  const response = await fetch("https://chromium.googlesource.com/chromium/src.git/+log/main?format=JSON&n=20");
+  const responseText = await response.text();
+
+  const json = JSON.parse(responseText.replace(/^\)]}'\n/, ""));
+
+  // We want to find a commit from at least an hour ago, as the API is not
+  // updated immediately.
+  const targetTime = new Date(Date.now() - 60 * 60 * 1000);
+
+  // Gitiles returns dates like "Mon Aug 03 14:22:10 2026" in committer.time
+  const matchingCommit = json.log.find((commit) => {
+    const commitDate = new Date(`${commit.committer.time} UTC`);
+    return commitDate <= targetTime;
+  });
+  
+  if (!matchingCommit) {
+    throw new Error("Unable to get head revision");
+  }
+
+  return matchingCommit.commit;
+}
 
 /**
  * Fetches and finds all the major release information for Chrome. Invokes git on the command-line
@@ -80,18 +102,11 @@ export async function chromeVersions() {
     maxBuffer: 1024 * 1024 * 32,
   });
 
-  let headRevision = '';
-
   /** @type {Map<number, {version: string, rest: string, revision: string}>} */
   const majorVersions = new Map();
 
   for (const line of stdout.split('\n')) {
     const [revision, rawTag] = line.split('\t');
-
-    if (rawTag === 'refs/heads/main') {
-      headRevision = revision;
-      continue;
-    }
 
     // Find a valid Chrome release number after "refs/tags/".
     if (!rawTag?.startsWith(tagPrefix)) {
@@ -128,7 +143,7 @@ export async function chromeVersions() {
   });
 
   return {
-    head: headRevision,
+    head: await getHeadRevision(),
     releases: releaseMajorVersions,
   };
 }
