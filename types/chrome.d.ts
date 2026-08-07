@@ -38,7 +38,7 @@ export interface ProcessedAPIData {
 // FIXME: This should have at least one value.
 export type MinArray<T> = T[];
 export type Channel = 'stable' | 'beta' | 'dev' | 'canary' | 'trunk';
-export type Platform = 'chromeos' | 'lacros' | 'linux' | 'mac' | 'win';
+export type Platform = 'chromeos' | 'lacros' | 'linux' | 'mac' | 'win' | 'desktop_android';
 export type Context = 'blessed_extension' | 'blessed_web_page' | 'content_script' | 'lock_screen_extension' | 'web_page' | 'webui' | 'webui_untrusted' | 'unblessed_extension';
 export type ExtensionType = 'extension' | 'hosted_app' | 'legacy_packaged_app' | 'platform_app' | 'shared_module' | 'theme' | 'login_screen_extension';
 export type All = 'all';

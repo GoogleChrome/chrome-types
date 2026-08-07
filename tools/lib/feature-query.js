@@ -82,6 +82,13 @@ export class FeatureQuery {
       return locationFilter[0];
     }
 
+    // The desktop android platform is new. If availability differs, show the
+    // availability on the other platforms.
+    const nonDesktopAndroidFilter = q.filter(({ platforms }) => platforms?.length !== 1 || platforms[0] !== "desktop_android");
+    if (nonDesktopAndroidFilter.length === 1) {
+      return nonDesktopAndroidFilter[0];
+    }
+
     // Features that are unclear here will throw.
   }
 
