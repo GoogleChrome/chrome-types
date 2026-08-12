@@ -45,6 +45,7 @@ const definitionPaths = [
   'extensions/common/api',
   'chrome/common/extensions/api',
   'chrome/common/apps/platform_apps/api',
+  'chromeos/ash/experiences/extensions/api/'
 ];
 
 

@@ -91,6 +91,10 @@ export async function fetchTo(targetPath, chromePath, revision) {
     if (r.status === 400 && chromePath === 'chrome/common/apps/platform_apps/api') {
       return [];
     }
+    // HACK: New ChromeOS folder is missing. Skip for now.
+    if (r.status === 400 && chromePath === 'chromeos/ash/experiences/extensions/api') {
+      return [];
+    }
     throw new Error(`could not fetch URL from Chromium: ${url}, ${r.statusText} (${r.status})`);
   }
 
