@@ -65,7 +65,7 @@ function splitChromeRelease(tag) {
 }
 
 async function getHeadRevision() {
-  const response = await fetch("https://chromium.googlesource.com/chromium/src.git/+log/main?format=JSON&n=20");
+  const response = await fetch("https://chromium.googlesource.com/chromium/src.git/+log/main?format=JSON&n=50");
   const responseText = await response.text();
 
   const json = JSON.parse(responseText.replace(/^\)]}'\n/, ""));
