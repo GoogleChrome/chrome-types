@@ -147,6 +147,7 @@ export class RenderOverride extends EmptyRenderOverride {
       case 'api:runtime.onUserScriptMessage':
       case 'api:tabs.Tab.splitViewId':
       case 'api:tabs.SPLIT_VIEW_ID_NONE':
+      case 'api:publicSuffix':
         // In old versions of Chrome, this is incorrectly marked nodoc.
         return true;
       case 'api:iconVariants':

@@ -86,6 +86,7 @@ privacy
 processes
 protocolHandlers
 proxy
+publicSuffix
 readingList
 runtime
 scripting
