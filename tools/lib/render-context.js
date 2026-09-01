@@ -444,7 +444,7 @@ export class RenderContext {
         }
       });
 
-      return maybeWrapAmbig(spec.choices.map((choice) => this.renderType(choice, id)).join(' | '));
+      return maybeWrapAmbig(spec.choices.filter((choice) => !choice.nodoc).map((choice) => this.renderType(choice, id)).join(' | '));
     }
 
     if (spec.type === 'array') {
