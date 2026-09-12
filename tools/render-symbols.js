@@ -62,7 +62,8 @@ This is used internally to generate historic version data for Chrome's APIs.
 
   const featureQuery = new FeatureQuery(o.feature);
   const renderOverride = new RenderOverride(o.api, featureQuery, null, majorVersion);
-  const renderContext = new RenderContext(renderOverride);
+  // Old releases use types the renderer no longer knows, and only the symbol ids matter here.
+  const renderContext = new RenderContext(renderOverride, { lenient: true });
 
   /** @type {Map<string, boolean>} */
   const symbols = new Map();

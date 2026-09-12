@@ -19,14 +19,17 @@ import { renderNamespaceBundle } from '../../tools/lib/render-bundle.js';
 import { RenderContext } from '../../tools/lib/render-context.js';
 import { FeatureQuery } from '../../tools/lib/feature-query.js';
 import { RenderOverride } from '../../tools/override.js';
+import * as chromeTypes from '../../types/chrome.js';
 
 
+/** @type {chromeTypes.NamespaceSpec[]} */
 const apis = [
   {
     namespace: 'alarms',
     description: 'Schedule code to run periodically.',
     functions: [{
       name: 'clear',
+      type: 'function',
       description: 'Clears an alarm.',
       parameters: [],
       returns_async: { name: 'callback', parameters: [{ name: 'wasCleared', type: 'boolean' }] },
@@ -34,25 +37,25 @@ const apis = [
   },
   {
     namespace: 'debugger',
-    functions: [{ name: 'attach', parameters: [{ name: 'target', type: 'string' }] }],
+    functions: [{ name: 'attach', type: 'function', parameters: [{ name: 'target', type: 'string' }] }],
   },
   {
     namespace: 'dns',
-    functions: [{ name: 'resolve', parameters: [{ name: 'hostname', type: 'string' }] }],
+    functions: [{ name: 'resolve', type: 'function', parameters: [{ name: 'hostname', type: 'string' }] }],
   },
   {
     namespace: 'devtools.inspectedWindow',
-    functions: [{ name: 'eval', parameters: [{ name: 'expression', type: 'string' }] }],
+    functions: [{ name: 'eval', type: 'function', parameters: [{ name: 'expression', type: 'string' }] }],
   },
 ];
 
 const history = {
   generated: '',
   high: 150,
-  low: 1,
+  low: 3,
   revision: 0,
   symbols: {
-    'api:alarms': { low: 88, high: 150 },
+    'api:alarms': { low: 22, high: 150 },
     'api:alarms.clear': { low: 90, high: 150 },
     'api:alarms.clear.return': { low: 91, high: 150 },
     'api:alarms.clear.callback': { low: 90, high: 150 },
@@ -74,7 +77,7 @@ test('browser root', t => {
 
   t.true(preamble.includes('chrome.events.Event'));
   t.true(body.includes(' * @since Chrome 148\n */\ndeclare namespace browser {'));
-  t.true(body.includes('   * @since Chrome 148\n   * @chrome-ns-since Chrome 88\n   */\n  export namespace alarms {'));
+  t.true(body.includes('   * @since Chrome 148\n   * @chrome-ns-since Chrome 22\n   */\n  export namespace alarms {'));
   t.true(body.includes('     * @chrome-returns-extra since Chrome 148\n     * @chrome-returns-extra chrome-ns-since Chrome 91\n     * @since Chrome 148\n     * @chrome-ns-since Chrome 90\n     */\n    export function clear('));
   t.true(body.includes('   * @since Chrome 150\n   * @chrome-ns-since Chrome 150\n   */\n  export namespace _debugger {'));
   t.true(body.includes('   * @since Chrome 152\n   * @chrome-ns-since Chrome 100\n   */\n  export namespace devtools.inspectedWindow {'));
@@ -101,7 +104,7 @@ test('alias comments', t => {
     '   *\n' +
     '   * Prefer browser.alarms. This name is the same API and remains supported.\n' +
     '   *\n' +
-    '   * @since Chrome 88\n' +
+    '   * @since Chrome 22\n' +
     '   */\n' +
     '  export namespace alarms {'
   ));
@@ -122,9 +125,9 @@ test('chrome root', t => {
   t.is(parts.length, 2);
   t.true(parts[1].startsWith('declare namespace chrome {'));
   t.false(parts[1].includes('browser'));
-  t.true(parts[1].includes('   * @since Chrome 88\n   */\n  export namespace alarms {'));
+  t.true(parts[1].includes('   * @since Chrome 22\n   */\n  export namespace alarms {'));
   t.false(parts[1].includes('chrome-ns-since'));
-  // developer.chrome.com parses this shape and needs the keyword namespace left unexported.
+  // _all.d.ts feeds developer.chrome.com, so its shape does not change.
   t.true(parts[1].includes('\n  namespace _debugger {'));
 });
 
@@ -132,7 +135,7 @@ test('no history', t => {
   const bare = new RenderContext(new RenderOverride({}, new FeatureQuery({}), null));
   const [, body] = renderNamespaceBundle(apis, bare, { root: 'browser' });
 
-  // Without release data nothing is known about a namespace's age, so no since tag is invented.
+  // There is no history, so no since tag can be invented.
   t.is(body.split('* @since ').length - 1, 1);
   t.true(body.includes(' * @since Chrome 148\n */\ndeclare namespace browser {'));
 });

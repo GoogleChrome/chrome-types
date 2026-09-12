@@ -18,7 +18,7 @@
 import * as chromeTypes from '../../types/chrome.js';
 import { parentId } from './traverse.js';
 import { isDeepEqual } from './equal.js';
-import { mostReleasedChannel } from './channel.js';
+import { mostReleasedChannel, leastReleasedChannel } from './channel.js';
 
 
 export class FeatureQuery {
@@ -54,9 +54,12 @@ export class FeatureQuery {
     const first = compare[0];
     const allMatch = !compare.slice(1).some((cand) => !isDeepEqual(cand, first));
     if (allMatch) {
+      // Any one alternative makes the feature available, so keep each dependency set for the
+      // channel check. The merged list still documents every permission.
       return {
         ...first,
         dependencies: [...mergedDependencies],
+        alternativeDependencies: q.map((cand) => cand.dependencies ?? []),
       };
     }
 
@@ -202,6 +205,36 @@ export class FeatureQuery {
     }
 
     return true;
+  }
+
+  /**
+   * Finds the most released channel a feature is available on, limited by its dependencies.
+   * Each alternative of a complex feature is checked on its own and the best one wins.
+   *
+   * @param {string} id
+   * @return {chromeTypes.Channel | undefined}
+   */
+  channelFor(id) {
+    const f = this.#flatten(id);
+    if (f === null) {
+      return undefined;
+    }
+    /** @type {chromeTypes.Channel | undefined} */
+    let best = undefined;
+    for (const dependencies of f.alternativeDependencies ?? [f.dependencies ?? []]) {
+      /** @type {chromeTypes.Channel | undefined} */
+      let channel = f.channel ?? 'stable';
+      for (const dep of dependencies) {
+        const depChannel = this.channelFor(dep);
+        if (depChannel === undefined) {
+          channel = undefined;
+          break;
+        }
+        channel = leastReleasedChannel(channel, depChannel);
+      }
+      best = mostReleasedChannel(best, channel);
+    }
+    return best;
   }
 
   /**

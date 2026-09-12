@@ -30,6 +30,7 @@ export class RenderContext {
 
   /** @type {string[]} */
   #knownNamespaces;
+  #lenient;
 
   /**
    * Set while rendering a root whose names only exist from a given release. Given a symbol id,
@@ -40,9 +41,10 @@ export class RenderContext {
   #sinceFloor = null;
 
   /**
-   * Set while rendering a root that another root aliases member by member: keyword-named
-   * declarations (debugger, eval) are exported under their underscore name so the alias can
-   * reach them. Off by default so _all.d.ts, the input to developer.chrome.com, keeps its shape.
+   * Exports the keyword-named declarations (debugger, eval) under their underscore names, so a
+   * root aliased member by member can reach them. TypeScript cannot alias through the keyword.
+   * The underscore names are then visible in the bundle and do not exist at runtime. Off for
+   * _all.d.ts, the input to developer.chrome.com, which keeps its shape.
    */
   #exportKeywordNames = false;
 
@@ -66,13 +68,18 @@ export class RenderContext {
   };
 
   /**
+   * The lenient option renders a type the tool does not know as `unknown`, for the schemas of
+   * old releases.
+   *
    * @param {overrideTypes.RenderOverride} override
+   * @param {{lenient?: boolean}} options
    */
-  constructor(override) {
+  constructor(override, { lenient = false } = {}) {
     this.#override = override;
+    this.#lenient = lenient;
 
     const isVisible = override.isVisible.bind(override);
-    this.#t = new TraverseContext(isVisible);
+    this.#t = new TraverseContext(isVisible, { lenient });
     this.#knownNamespaces = readFileSync("tools/lib/known-namespaces.txt").toString("utf8").split("\n");
   }
 
@@ -749,6 +756,10 @@ export class RenderContext {
         return spec.type;
     }
 
+    if (this.#lenient) {
+      log.warn(`Rendering unsupported type as unknown: ${JSON.stringify(spec)}`);
+      return 'unknown';
+    }
     throw new Error(`unsupported type: ${JSON.stringify(spec)}`);
   }
 

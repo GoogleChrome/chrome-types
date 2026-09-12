@@ -22,7 +22,7 @@
 
 import * as chromeTypes from '../types/chrome.js';
 import * as overrideTypes from '../types/override.js';
-import { leastReleasedChannel, mostReleasedChannel } from './lib/channel.js';
+import { mostReleasedChannel } from './lib/channel.js';
 import { buildNamespaceAwareMarkdownRewrite } from './lib/comment.js';
 import { FeatureQuery } from './lib/feature-query.js';
 import { namespaceNameFromId, parentId } from './lib/traverse.js';
@@ -478,14 +478,7 @@ export class RenderOverride extends EmptyRenderOverride {
    * @return {chromeTypes.Channel}
    */
   bestChannelFor(id) {
-    /** @type {chromeTypes.Channel | undefined} */
-    let bestChannel = undefined;
-
-    this.#fq.checkFeature(id, (f, otherId) => {
-      bestChannel = leastReleasedChannel(bestChannel, f.channel);
-    });
-
-    return bestChannel ?? 'stable';
+    return this.#fq.channelFor(id) ?? 'stable';
   }
 
   /**

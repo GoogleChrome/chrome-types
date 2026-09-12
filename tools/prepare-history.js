@@ -24,6 +24,7 @@
 
 
 import { toolInvoke } from './lib/spawn-helper.js';
+import { applyRelease } from './lib/release-history.js';
 import log from 'fancy-log';
 import { chromePublishedStable } from './lib/chrome-versions.js';
 import * as chromeTypes from '../types/chrome.js';
@@ -31,17 +32,19 @@ import mri from 'mri';
 import getStdin from 'get-stdin';
 
 
-const defualtLowVersion = 42;
+// Chrome 3 has schemas, but known-namespaces.txt rejects their chrome.* spelling, so it is an
+// empty baseline and every API present in Chrome 4 gets low 4.
+const defaultLowVersion = 3;
 
 
 // Rev this if something changes in the history file.
-const expectedRevision = 5;
+const expectedRevision = 6;
 
 
 async function run() {
   const argv = mri(process.argv.slice(2), {
     boolean: ['input', 'help'],
-    default: {'low': defualtLowVersion},
+    default: {'low': defaultLowVersion},
     alias: {
       'low': ['l'],
       'help': ['h'],
@@ -64,7 +67,7 @@ async function run() {
 Generates historic data for Chrome extensions up to the current stable release.
 
 Options:
-  -l, --low            specifies low version to start at (default ${defualtLowVersion})
+  -l, --low            specifies low version to start at (default ${defaultLowVersion})
   -i, --input          accepts previous JSON on stdin and works from that version
 `);
     process.exit(0);
@@ -102,33 +105,9 @@ Options:
     const symbols = /** @type {chromeTypes.ReleaseSymbolsData} */ (JSON.parse(symbolsPayload.toString('utf-8')));
 
 
-    const isInitialSymbols = (Object.keys(allSymbols).length === 0);
-
-    for (const id in symbols) {
-      const data = allSymbols[id] ?? { high: 0 };
-      data.high = version;
-
-      // This is a new symbol and it's not the first pass, record the seen version.
-      if (!(id in allSymbols)) {
-        if (!isInitialSymbols) {
-          console.warn(id, 'started stable at', version);
-          data.low = version;
-        }
-        allSymbols[id] = data;
-      }
-
-      if (symbols[id].deprecated) {
-        // If we're newly deprecated, this might be at "version zero" (if it's the intial pass), or a
-        // later version.
-        if (data.deprecated === undefined) {
-          data.deprecated = isInitialSymbols ? 0 : version;
-        }
-      } else if (data.deprecated) {
-        // This possibly never happens in practice.
-        console.warn(id, 'now NOT deprecated');
-        delete data.deprecated;
-      }
-    }
+    // The first release of a cold walk is the baseline, even when it yields no symbols.
+    const isBaseline = (version === lowVersion && Object.keys(allSymbols).length === 0);
+    applyRelease(allSymbols, version, symbols, isBaseline, (message) => console.warn(message));
   }
 
 
