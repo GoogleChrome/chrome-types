@@ -11,7 +11,7 @@ Depend on it for your Chrome extensions projects (MV3 and above).
 ## Design
 
 This repo's design is documented in [the wiki](https://github.com/GoogleChrome/chrome-types/wiki).
-Broadly, it reads Chromium's source code to find the internal extensions definitions (in IDL and JSON) and traverses them to generate ".d.ts" files—one for modern extension development (MV3+), and one for all extensions (including the deprecated Platform Apps APIs).
+Broadly, it reads Chromium's source code to find the internal extensions definitions (in IDL and JSON) and traverses them to generate three ".d.ts" files: "index.d.ts" for modern extension development (MV3+), "no-browser.d.ts" for those APIs under chrome only, and "_all.d.ts" for all extensions (including the deprecated Platform Apps APIs).
 
 ## Deploy
 
