@@ -31,6 +31,21 @@ export class RenderContext {
   /** @type {string[]} */
   #knownNamespaces;
 
+  /**
+   * Set while rendering a root whose names only exist from a given release. Given a symbol id,
+   * returns the release its since tag is raised to. The original value moves to chrome-ns-since.
+   *
+   * @type {((id: string) => number) | null}
+   */
+  #sinceFloor = null;
+
+  /**
+   * Set while rendering a root that another root aliases member by member: keyword-named
+   * declarations (debugger, eval) are exported under their underscore name so the alias can
+   * reach them. Off by default so _all.d.ts, the input to developer.chrome.com, keeps its shape.
+   */
+  #exportKeywordNames = false;
+
   /** @type {chromeTypes.SpecCallback[]} */
   #callbacks = [];
 
@@ -69,24 +84,113 @@ export class RenderContext {
   }
 
   /**
-   * Renders every passed namespace as .d.ts.
+   * Renders every passed namespace as .d.ts under a root, and lists the top-level names it
+   * emitted with their descriptions.
    *
    * @param {chromeTypes.NamespaceSpec[]} apis
-   * @return {string}
+   * @param {string} root
+   * @param {{exportKeywordNames?: boolean, sinceFloor?: (id: string) => number}} options
+   * @return {{out: string, namespaces: chromeTypes.NamespaceSpec[]}}
    */
-  renderAll(apis) {
+  renderRoot(apis, root, { exportKeywordNames = false, sinceFloor } = {}) {
     const buf = new RenderBuffer();
-    buf.start('declare namespace chrome {');
+    buf.start(`declare namespace ${root} {`);
 
     apis = apis.slice();
     apis.sort(({ namespace: a }, { namespace: b }) => a.localeCompare(b));
 
-    apis.forEach((namespace) => {
-      buf.append(this.maybeRenderNamespace(namespace));
-    });
+    /** @type {chromeTypes.NamespaceSpec[]} */
+    const namespaces = [];
+    this.#sinceFloor = sinceFloor ?? null;
+    this.#exportKeywordNames = exportKeywordNames;
+    try {
+      apis.forEach((namespace) => {
+        const rendered = this.maybeRenderNamespace(namespace);
+        if (rendered) {
+          buf.append(rendered);
+          namespaces.push(namespace);
+        }
+      });
+    } finally {
+      this.#sinceFloor = null;
+      this.#exportKeywordNames = false;
+    }
 
     buf.end('}');
     buf.line();
+
+    return { out: buf.render(true), namespaces };
+  }
+
+  /**
+   * Renders a namespace as aliases of the same members under another root. Each alias keeps the
+   * comment its member has here.
+   *
+   * @param {chromeTypes.NamespaceSpec} namespace
+   * @param {string} from qualified namespace to alias, e.g. "browser.tabs"
+   * @param {string} note appended to the namespace comment
+   * @return {string}
+   */
+  renderAliasNamespace(namespace, from, note) {
+    const toplevel = `api:${namespace.namespace}`;
+    const buf = new RenderBuffer();
+
+    const description = this.describe(namespace, toplevel);
+    buf.line();
+    buf.comment(description ? `${description}\n\n${note}` : note, this.tagsForRenderComment(namespace, toplevel));
+
+    const { namespace: name } = namespace;
+    const effectiveName = isValidToken(name) ? name : `_${name}`;
+    buf.line();
+    buf.start(`export namespace ${effectiveName} {`);
+
+    namespace = /** @type {chromeTypes.NamespaceSpec} */ (
+        this.#override.typeOverride(namespace, toplevel)) ?? namespace;
+
+    /** @type {(spec: chromeTypes.TypeSpec, id: string) => void} */
+    const alias = (spec, id) => {
+      const member = last(id);
+      buf.line();
+      buf.append(this.renderComment(spec, id));
+      if (isValidToken(member)) {
+        buf.line(`export import ${member} = ${from}.${member};`);
+      } else {
+        // Mirrors renderTopFunction, which declares a keyword-named function under _name.
+        buf.line(`import _${member} = ${from}._${member};`);
+        buf.line(`export {_${member} as ${member}};`);
+      }
+    };
+
+    // Return tags are only added when a function is expanded, so describe the alias with its
+    // first expansion.
+    /** @type {(spec: chromeTypes.TypeSpec, id: string) => void} */
+    const aliasFunction = (spec, id) => {
+      spec = this.#override.typeOverride(spec, id) ?? spec;
+      const [expansion] = this.#skipCallbacks(() => this.#t.expandFunctionParams(
+        spec, id, this.#override.isPromiseSupportVisible(spec, id), this.#override.isPlatformAppsOnly(id)));
+      if (expansion) {
+        const [returns, ...parameters] = expansion;
+        spec = { ...spec, parameters, returns };
+      }
+      alias(spec, id);
+    };
+
+    // Types with invalid names are skipped by renderInnerNamespace, so there is nothing to alias.
+    this.#t.forEach(namespace.types, toplevel, (spec, id) => {
+      if (isValidToken(last(id))) {
+        alias(spec, id);
+      }
+    });
+    const properties = this.#t.propertiesFor(namespace, toplevel);
+    for (const id in properties) {
+      alias(properties[id], id);
+    }
+    this.#t.forEach(namespace.functions, toplevel, aliasFunction);
+
+    buf.end('}');
+    if (effectiveName !== name) {
+      buf.line(`export {${effectiveName} as ${name}};`);
+    }
 
     return buf.render(true);
   }
@@ -127,7 +231,7 @@ export class RenderContext {
     } else {
       // Allow keywords as namespace names by declaring and then re-exporting.
       // This only matters for `api:debugger`.
-      buf.start(`namespace _${name} {`);
+      buf.start(`${this.#exportKeywordNames ? 'export ' : ''}namespace _${name} {`);
       buf.append(content);
       buf.end('}');
       buf.line(`export {_${name} as ${name}};`)
@@ -289,7 +393,7 @@ export class RenderContext {
         prefix = 'export function ';
       } else {
         // HACK: This happens once for a method named `delete`.
-        prefix = 'function ';
+        prefix = this.#exportKeywordNames ? 'export function ' : 'function ';
         effectiveName = `_${effectiveName}`;
         buf.line();
         buf.line(`export {${effectiveName} as ${name}};`)
@@ -683,7 +787,8 @@ export class RenderContext {
 
       // If there's extra tags really intended for the return type, then include them all under a
       // special "extra" tag. This is expanded by our TypeDoc parser on developer.chrome.com.
-      const tagsForReturn = this.tagsForRenderComment(spec.returns, `${id}.return`);
+      const returnId = `${id}.return`;
+      const tagsForReturn = this.#applySinceFloor(this.tagsForRenderComment(spec.returns, returnId), returnId);
       const transformedTags = tagsForReturn.map((tag) => {
         return {
           name: 'chrome-returns-extra',
@@ -724,19 +829,49 @@ export class RenderContext {
   }
 
   /**
+   * Copies the since tag to chrome-ns-since and raises since to the floor when it is older. Tags
+   * without a "Chrome N" since value, or rendered without a floor, are returned as they are.
+   *
+   * @param {chromeTypes.Tag[]} tags
+   * @param {string} id
+   * @return {chromeTypes.Tag[]}
+   */
+  #applySinceFloor(tags, id) {
+    const floor = this.#sinceFloor?.(id);
+    const since = tags.find((tag) => tag.name === 'since');
+    const version = /^Chrome (\d+)$/.exec(since?.value ?? '');
+    if (!floor || !since || !version) {
+      return tags;
+    }
+    const raised = +version[1] < floor ? { name: 'since', value: `Chrome ${floor}` } : since;
+    return tags.flatMap((tag) => (
+      tag === since ? [raised, { name: 'chrome-ns-since', value: since.value }] : [tag]
+    ));
+  }
+
+  /**
+   * Rewrites a spec's description through the override.
+   *
+   * @param {chromeTypes.TypeSpec} spec
+   * @param {string} id
+   * @return {string}
+   */
+  describe(spec, id) {
+    const description = sanitizeCommentData(spec.description);
+    if (!description) {
+      return '';
+    }
+    return this.#override.rewriteComment(description, id) ?? description;
+  }
+
+  /**
    * @param {chromeTypes.TypeSpec} spec
    * @param {string} id
    * @return {RenderBuffer?}
    */
   renderComment(spec, id) {
-    const tags = this.tagsForRenderComment(spec, id);
-
-    let description = sanitizeCommentData(spec.description);
-
-    // Rewrite the description.
-    if (description) {
-      description = this.#override.rewriteComment(description, id) ?? description;
-    }
+    const tags = this.#applySinceFloor(this.tagsForRenderComment(spec, id), id);
+    const description = this.describe(spec, id);
 
     if (description || tags.length) {
       const buf = new RenderBuffer();
