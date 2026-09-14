@@ -16,6 +16,7 @@
 
 
 import * as chromeTypes from '../../types/chrome.js';
+import log from 'fancy-log';
 
 
 /**
@@ -62,12 +63,18 @@ export function namespaceNameFromId(id) {
 
 export class TraverseContext {
   #filter;
+  #lenient;
 
   /**
+   * The lenient option skips an unnamed property or parameter, which schemas before Chrome 10
+   * contain, instead of throwing.
+   *
    * @param {(spec: chromeTypes.TypeSpec, id: string) => boolean} filter
+   * @param {{lenient?: boolean}} options
    */
-  constructor(filter) {
+  constructor(filter, { lenient = false } = {}) {
     this.#filter = filter;
+    this.#lenient = lenient;
   }
 
   /**
@@ -92,6 +99,10 @@ export class TraverseContext {
       for (const p of source) {
         const cid = p.id ?? p.name;
         if (cid === undefined) {
+          if (this.#lenient) {
+            log.warn(`Skipping unnamed property/param under ${parent}`);
+            continue;
+          }
           throw new Error(`bad property/param: ${JSON.stringify(p)} parent=${parent}`);
         }
 

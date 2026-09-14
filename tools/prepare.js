@@ -48,6 +48,12 @@ const definitionPaths = [
   'chromeos/ash/experiences/extensions/api/'
 ];
 
+// Directories Chromium no longer has at HEAD.
+const optionalAtHead = [
+  'chrome/common/apps/platform_apps/api',
+  'chromeos/ash/experiences/extensions/api',
+];
+
 
 /**
  * Fetch these folders to run the IDL => JSON converter.
@@ -81,12 +87,18 @@ async function prepareInTemp({ majorChrome, workPath, headRevision, definitionsR
     ? "c279767649d882b71a14697fe9935d3c890a1ec7"
     : headRevision;
 
-  const defitionsResult = await fetchAllTo(workPath, definitionPaths, definitionsRevision);
+  // A historic revision may lack any of these directories. At HEAD only the ones Chromium has
+  // already removed may be missing.
+  const historic = typeof majorChrome === "number";
+  const optional = (chromePath) => historic || optionalAtHead.includes(chromePath);
+
+  const defitionsResult = await fetchAllTo(workPath, definitionPaths, definitionsRevision, optional);
   const toolsResult = await fetchAllTo(
     workPath,
     // In newer versions of the tool, generators is vendored into the `json_schema_compiler` directory.
     useOldToolRevision ? [...toolsPaths, 'ppapi/generators'] : toolsPaths,
-    toolRevision
+    toolRevision,
+    optional,
   );
   const definitionsFiles = defitionsResult.flatMap(cand => cand ?? []);
   const toolsFiles = toolsResult.flatMap(cand => cand ?? []);
@@ -135,19 +147,14 @@ async function prepareInTemp({ majorChrome, workPath, headRevision, definitionsR
       o = JSON5.parse(await fsPromises.readFile(path.join(workPath, cand), 'utf-8'));
     }
 
-    // Raw JSON definitions come wrapped in an array.
-    if (Array.isArray(o)) {
-      if (o.length !== 1) {
-        throw new Error(`got unexpected API definition length: ${o.length} from ${cand}`);
+    // Raw JSON definitions come wrapped in an array. Before Chrome 21 one file held many.
+    for (const def of Array.isArray(o) ? o : [o]) {
+      const namespace = def['namespace'];
+      if (!namespace || namespace in outputDefinitions) {
+        throw new Error(`got invalid/duplicate namespace: '${namespace}' from ${cand}`);
       }
-      o = o[0];
+      outputDefinitions[namespace] = def;
     }
-
-    const namespace = o['namespace'];
-    if (!namespace || namespace in outputDefinitions) {
-      throw new Error(`got invalid/duplicate namespace: '${namespace}' from ${cand}`);
-    }
-    outputDefinitions[namespace] = o;
   });
   await Promise.all(conversionTasks);
 

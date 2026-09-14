@@ -65,7 +65,9 @@ export async function convertFromIdl(root, filename) {
 
   for (const binary of pythonBinary) {
     try {
-      const { stdout } = await execFile(binary, args, { cwd: root });
+      let { stdout } = await execFile(binary, args, { cwd: root });
+      // Old revisions of the compiler print a warning line before the JSON.
+      stdout = stdout.slice(Math.max(0, stdout.search(/^[\[{]/m)));
 
       // Ensure that we don't have any invalid JSON here by converting back to an object.
       const o = JSON5.parse(stdout);

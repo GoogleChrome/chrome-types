@@ -11,7 +11,8 @@ Depend on it for your Chrome extensions projects (MV3 and above).
 ## Design
 
 This repo's design is documented in [the wiki](https://github.com/GoogleChrome/chrome-types/wiki).
-Broadly, it reads Chromium's source code to find the internal extensions definitions (in IDL and JSON) and traverses them to generate ".d.ts" files—one for modern extension development (MV3+), and one for all extensions (including the deprecated Platform Apps APIs).
+Broadly, it reads Chromium's source code to find the internal extensions definitions (in IDL and JSON) and traverses them to generate three ".d.ts" files. "index.d.ts" is for modern extension development (MV3+) and declares the APIs on the `browser` global, with the same APIs available as `chrome.*`. "no-browser.d.ts" has the same APIs under `chrome` only, selected with `"types": ["chrome-types/no-browser"]` in tsconfig.json. Under `browser`, `@since` is the release where the `browser` name became available and `@chrome-ns-since` the release where the API arrived under `chrome`. The `chrome.*` aliases keep the original `@since`. "_all.d.ts" covers all extensions, including the deprecated Platform Apps APIs.
+Because "index.d.ts" declares a global `browser`, it cannot be combined with other packages that declare one, such as `@types/firefox-webext-browser`. Use "no-browser.d.ts" in that case.
 
 ## Deploy
 

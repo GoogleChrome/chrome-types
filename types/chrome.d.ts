@@ -70,6 +70,12 @@ export interface FeatureSpec {
 
   dependencies?: string[];
 
+  /**
+   * The dependencies of each alternative when a complex feature has been merged. Any one of them
+   * makes the feature available. `dependencies` lists them all.
+   */
+  alternativeDependencies?: string[][];
+
   disallow_for_service_workers?: boolean;
 
   extension_types?: MinArray<ExtensionType>|All;

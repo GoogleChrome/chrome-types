@@ -191,3 +191,39 @@ test('render minItems/maxItems with more than 10 values', t => {
 
   t.is(out, `string[]`);
 });
+
+test('renderRoot', t => {
+  const rc = new RenderContext(emptyOverride);
+
+  t.true(rc.renderRoot([], 'chrome').out.startsWith('declare namespace chrome {'));
+
+  /** @type {chromeTypes.NamespaceSpec[]} */
+  const apis = [{
+    namespace: 'alarms',
+    description: 'Schedule code to run periodically.',
+    functions: [{
+      name: 'clear',
+      type: 'function',
+      parameters: [],
+      returns_async: {
+        name: 'callback',
+        parameters: [],
+      },
+    }],
+  }, {
+    namespace: 'system.cpu',
+    functions: [{
+      name: 'getInfo',
+      type: 'function',
+      parameters: [],
+      returns_async: {
+        name: 'callback',
+        parameters: [],
+      },
+    }],
+  }];
+  const { out, namespaces } = rc.renderRoot(apis, 'browser');
+  t.true(out.startsWith('declare namespace browser {'));
+  t.true(out.includes('export namespace alarms {'));
+  t.deepEqual(namespaces.map((n) => n.namespace), ['alarms', 'system.cpu']);
+});
