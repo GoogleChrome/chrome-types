@@ -45,7 +45,7 @@ const definitionPaths = [
   'extensions/common/api',
   'chrome/common/extensions/api',
   'chrome/common/apps/platform_apps/api',
-  'chromeos/ash/experiences/extensions/api/'
+  'chromeos/ash/experiences/extensions/common/api'
 ];
 
 
@@ -95,7 +95,7 @@ async function prepareInTemp({ majorChrome, workPath, headRevision, definitionsR
   log.warn(`Fetched ${chalk.blue(toolsFiles.length)} tools files to convert IDL => JSON`);
 
   const allDefinitions = fastGlob.sync('**/*.{json,idl,webidl}', { cwd: workPath }).filter(cand => {
-    if (cand.includes('/test/') || cand.includes('/test_') || cand.startsWith('tools/')) {
+    if (cand.includes('/test/') || cand.includes('/test_') || cand.startsWith('tools/') || cand.includes("manifest_types")) {
       return false;
     }
     // Only allow JSON/IDL files inside definition paths.
