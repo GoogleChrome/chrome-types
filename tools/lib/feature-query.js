@@ -229,6 +229,32 @@ export function extensionTypesInclude(extensionTypes, type) {
 }
 
 /**
+ * A FeatureQuery that only allows APIs available in MV3+, used to render the main chrome-types
+ * bundle (everything except the `-a`/`--all` output, which keeps MV2 and Platform Apps too).
+ */
+export class FeatureQueryModern extends FeatureQuery {
+
+  /**
+   * @param {chromeTypes.FeatureSpec} f
+   * @return {boolean}
+   */
+  filter(f) {
+    // Don't show anything that maxes out before MV3.
+    if (f.max_manifest_version && f.max_manifest_version < 3) {
+      return false;
+    }
+
+    // Remove non-extension APIs.
+    if (f.extension_types && !extensionTypesInclude(f.extension_types, 'extension')) {
+      return false;
+    }
+
+    return super.filter(f);
+  }
+
+}
+
+/**
  * @param {chromeTypes.FeatureSpec} f
  * @return {boolean}
  */

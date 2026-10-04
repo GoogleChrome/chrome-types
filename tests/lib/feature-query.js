@@ -1,5 +1,5 @@
 import test from 'ava';
-import { FeatureQuery } from '../../tools/lib/feature-query.js';
+import { FeatureQuery, FeatureQueryModern } from '../../tools/lib/feature-query.js';
 
 test('most stable channel is preferred', (t) => {
   const featureQuery = new FeatureQuery({});
@@ -37,6 +37,14 @@ test('extension_types "all" is preferred like an explicit list', (t) => {
     ]),
     { channel: 'stable', min_manifest_version: 3, extension_types: 'all' }
   );
+});
+
+test('MV3+ filter keeps extension_types "all"', (t) => {
+  // This is the site that dropped runtime.lastError: extension_types: "all" has to pass the
+  // same as an explicit array containing "extension".
+  const featureQuery = new FeatureQueryModern({});
+
+  t.assert(featureQuery.filter({ channel: 'stable', extension_types: 'all' }));
 });
 
 test('non-location specific features are preferred', (t) => {

@@ -26,7 +26,7 @@ import * as chromeTypes from '../types/chrome.js';
 import * as fs from 'fs';
 import mri from 'mri';
 import { RenderContext } from './lib/render-context.js';
-import { FeatureQuery, extensionTypesInclude } from './lib/feature-query.js';
+import { FeatureQuery, FeatureQueryModern } from './lib/feature-query.js';
 import log from 'fancy-log';
 import { RenderOverride } from './override.js';
 
@@ -145,29 +145,6 @@ function loadHistory(path) {
   history.symbols["api:runtime.onMessage.sendResponse.response"] = { high: history.high };
 
   return history;
-}
-
-
-class FeatureQueryModern extends FeatureQuery {
-
-  /**
-   * @param {chromeTypes.FeatureSpec} f
-   * @return {boolean}
-   */
-  filter(f) {
-    // Don't show anything that maxes out before MV3.
-    if (f.max_manifest_version && f.max_manifest_version < 3) {
-      return false;
-    }
-
-    // Remove non-extension APIs.
-    if (f.extension_types && !extensionTypesInclude(f.extension_types, 'extension')) {
-      return false;
-    }
-
-    return super.filter(f);
-  }
-
 }
 
 
