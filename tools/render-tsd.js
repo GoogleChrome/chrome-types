@@ -26,7 +26,7 @@ import * as chromeTypes from '../types/chrome.js';
 import * as fs from 'fs';
 import mri from 'mri';
 import { RenderContext } from './lib/render-context.js';
-import { FeatureQuery } from './lib/feature-query.js';
+import { FeatureQuery, extensionTypesInclude } from './lib/feature-query.js';
 import log from 'fancy-log';
 import { RenderOverride } from './override.js';
 
@@ -161,7 +161,7 @@ class FeatureQueryModern extends FeatureQuery {
     }
 
     // Remove non-extension APIs.
-    if (f.extension_types && !f.extension_types.includes('extension')) {
+    if (f.extension_types && !extensionTypesInclude(f.extension_types, 'extension')) {
       return false;
     }
 
