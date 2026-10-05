@@ -379,7 +379,7 @@ test('chrome root', t => {
 
 
 test('namespace shadowing the root', t => {
-  // chrome.browser.openTab is a real API.
+  // chrome.browser.openTab is a real Chrome Apps API.
   const shadowing = [...apis, { namespace: 'browser', functions: [{ name: 'openTab', type: 'function', parameters: [] }] }];
 
   t.throws(() => renderNamespaceBundle(shadowing, rc, { root: 'browser' }));
