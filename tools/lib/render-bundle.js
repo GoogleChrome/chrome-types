@@ -57,7 +57,7 @@ export function renderNamespaceBundle(apis, renderContext, { root }) {
     return [preamble, renderContext.renderRoot(apis, root).out];
   }
 
-  const { out, namespaces } = renderContext.renderRoot(apis, root, {
+  const { out, namespaces, floored } = renderContext.renderRoot(apis, root, {
     exportKeywordNames: true,
     sinceFloor: browserSinceFloor,
   });
@@ -68,18 +68,20 @@ export function renderNamespaceBundle(apis, renderContext, { root }) {
   header.line();
   header.append(out);
 
-  return [preamble, header.render(true).trimStart(), renderChromeCompat(namespaces, renderContext)];
+  return [preamble, header.render(true).trimStart(), renderChromeCompat(namespaces, floored, renderContext)];
 }
 
 
 /**
- * Renders the chrome namespace, keeping every API reachable under its original name.
+ * Renders the chrome namespace, keeping every API reachable under its original name. Functions
+ * whose comment the floor changed are declared again rather than aliased.
  *
  * @param {chromeTypes.NamespaceSpec[]} namespaces the namespaces that rendered under browser
+ * @param {Set<string>} floored the functions the floor changed
  * @param {RenderContext} renderContext
  * @return {string}
  */
-function renderChromeCompat(namespaces, renderContext) {
+function renderChromeCompat(namespaces, floored, renderContext) {
   const buf = new RenderBuffer();
   buf.start('declare namespace chrome {');
 
@@ -89,7 +91,7 @@ function renderChromeCompat(namespaces, renderContext) {
       throw new Error(`namespace shadows the browser root: ${namespace.namespace}`);
     }
     const note = `Alias of browser.${namespace.namespace}.`;
-    buf.append(renderContext.renderAliasNamespace(namespace, 'browser', note));
+    buf.append(renderContext.renderAliasNamespace(namespace, 'browser', note, floored));
   }
 
   buf.end('}');
