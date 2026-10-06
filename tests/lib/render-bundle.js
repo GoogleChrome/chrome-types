@@ -69,6 +69,8 @@ const history = {
     'api:alarms.clear.return': { low: 91, high: 150 },
     'api:debugger': { low: 150, high: 150 },
     'api:devtools.inspectedWindow': { low: 100, high: 150 },
+    'api:devtools.inspectedWindow.eval': { low: 120, high: 150 },
+    'api:debugger.attach.target': { low: 140, high: 150 },
   },
 };
 
@@ -147,6 +149,10 @@ declare namespace browser {
      */
     export function attach(
 
+      /**
+       * @since Chrome 148
+       * @chrome-namespace-since Chrome 140
+       */
       target: string,
     ): void;
 
@@ -168,10 +174,14 @@ declare namespace browser {
     export {_eval as eval};
 
     /**
-     * @since Pending
+     * @since Chrome 152
+     * @chrome-namespace-since Chrome 120
      */
     export function _eval(
 
+      /**
+       * @since Pending
+       */
       expression: string,
     ): void;
   }
@@ -222,7 +232,22 @@ test('chrome compat', t => {
      * @chrome-returns-extra since Chrome 91
      * @since Chrome 90
      */
-    export import clear = browser.alarms.clear;
+    export function clear(): Promise<boolean>;
+
+    /**
+     * Clears an alarm.
+     *
+     * @since Chrome 90
+     */
+    export function clear(
+
+      /**
+       * @since Pending
+       */
+      callback?: (
+        wasCleared: boolean,
+      ) => void,
+    ): void;
   }
 
   /**
@@ -235,7 +260,13 @@ test('chrome compat', t => {
     /**
      * @since Pending
      */
-    export import attach = browser._debugger.attach;
+    export function attach(
+
+      /**
+       * @since Chrome 140
+       */
+      target: string,
+    ): void;
 
     /**
      * @since Pending
@@ -252,11 +283,18 @@ test('chrome compat', t => {
    */
   export namespace devtools.inspectedWindow {
 
-    /**
-     * @since Pending
-     */
-    import _eval = browser.devtools.inspectedWindow._eval;
     export {_eval as eval};
+
+    /**
+     * @since Chrome 120
+     */
+    export function _eval(
+
+      /**
+       * @since Pending
+       */
+      expression: string,
+    ): void;
   }
 
   /**
@@ -334,6 +372,9 @@ test('chrome root', t => {
      */
     export function attach(
 
+      /**
+       * @since Chrome 140
+       */
       target: string,
     ): void;
 
@@ -354,10 +395,13 @@ test('chrome root', t => {
     export {_eval as eval};
 
     /**
-     * @since Pending
+     * @since Chrome 120
      */
     function _eval(
 
+      /**
+       * @since Pending
+       */
       expression: string,
     ): void;
   }

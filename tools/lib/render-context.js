@@ -34,6 +34,11 @@ export class RenderContext {
   /** @type {((id: string) => number) | null} */
   #sinceFloor = null;
 
+  #sinceFloorApplied = 0;
+
+  /** @type {Set<string>} */
+  #flooredFunctions = new Set();
+
   #exportKeywordNames = false;
 
   /** @type {chromeTypes.SpecCallback[]} */
@@ -74,12 +79,13 @@ export class RenderContext {
   }
 
   /**
-   * Returns the rendered output and the namespaces that rendered.
+   * Returns the rendered output, the namespaces that rendered, and the ids of the namespace
+   * functions whose comment the floor changed.
    *
    * @param {chromeTypes.NamespaceSpec[]} apis
    * @param {string} root
    * @param {{exportKeywordNames?: boolean, sinceFloor?: (id: string) => number}} options
-   * @return {{out: string, namespaces: chromeTypes.NamespaceSpec[]}}
+   * @return {{out: string, namespaces: chromeTypes.NamespaceSpec[], floored: Set<string>}}
    */
   renderRoot(apis, root, { exportKeywordNames = false, sinceFloor } = {}) {
     const buf = new RenderBuffer();
@@ -91,6 +97,7 @@ export class RenderContext {
     /** @type {chromeTypes.NamespaceSpec[]} */
     const namespaces = [];
     this.#sinceFloor = sinceFloor ?? null;
+    this.#flooredFunctions = new Set();
     this.#exportKeywordNames = exportKeywordNames;
     try {
       apis.forEach((namespace) => {
@@ -108,19 +115,21 @@ export class RenderContext {
     buf.end('}');
     buf.line();
 
-    return { out: buf.render(true), namespaces };
+    return { out: buf.render(true), namespaces, floored: this.#flooredFunctions };
   }
 
   /**
    * Renders a namespace as aliases of its members under another root. Each alias keeps the
-   * comment its member has here.
+   * comment its member has here. TypeScript documents a call with the resolved function's
+   * comment, not the alias's, so a function in `floored` is declared again.
    *
    * @param {chromeTypes.NamespaceSpec} namespace
    * @param {string} root root to alias from, e.g. "browser"
    * @param {string} note appended to the namespace comment
+   * @param {Set<string>} floored ids of functions whose comment under `root` differs from here
    * @return {string}
    */
-  renderAliasNamespace(namespace, root, note) {
+  renderAliasNamespace(namespace, root, note, floored) {
     const toplevel = `api:${namespace.namespace}`;
     const buf = new RenderBuffer();
 
@@ -155,6 +164,10 @@ export class RenderContext {
     // alias with that.
     /** @type {(spec: chromeTypes.TypeSpec, id: string) => void} */
     const aliasFunction = (spec, id) => {
+      if (floored.has(id)) {
+        buf.append(this.#skipCallbacks(() => this.renderTopFunction(spec, id, true)));
+        return;
+      }
       spec = this.#override.typeOverride(spec, id) ?? spec;
       const [expansion] = this.#skipCallbacks(() => this.#t.expandFunctionParams(
         spec, id, this.#override.isPromiseSupportVisible(spec, id), this.#override.isPlatformAppsOnly(id)));
@@ -175,7 +188,12 @@ export class RenderContext {
     for (const id in properties) {
       alias(properties[id], id);
     }
-    this.#t.forEach(namespace.functions, toplevel, aliasFunction);
+    this.#exportKeywordNames = true;
+    try {
+      this.#t.forEach(namespace.functions, toplevel, aliasFunction);
+    } finally {
+      this.#exportKeywordNames = false;
+    }
 
     buf.end('}');
     if (effectiveName !== name) {
@@ -374,6 +392,7 @@ export class RenderContext {
     const name = last(id);
 
     const buf = new RenderBuffer();
+    const sinceFloorApplied = this.#sinceFloorApplied;
 
     let effectiveName = name;
     let prefix = '';
@@ -460,6 +479,12 @@ export class RenderContext {
     for (const param of allParams.values()) {
       const childId = `${id}.${param.name}`;
       this.renderType(param, childId);
+    }
+
+    // The floor can change a comment anywhere in this text, a nested parameter's included, so
+    // compare the counter rather than this function's own tags.
+    if (isNamespaceFunction && this.#sinceFloorApplied !== sinceFloorApplied) {
+      this.#flooredFunctions.add(id);
     }
 
     return buf.render(true);
@@ -821,6 +846,7 @@ export class RenderContext {
   /**
    * Copies `@since` to `@chrome-namespace-since` and raises `@since` to the floor when it is
    * older. Tags without a "Chrome N" `@since`, or rendered without a floor, come back untouched.
+   * Every rewrite counts in `#sinceFloorApplied`.
    *
    * @param {chromeTypes.Tag[]} tags
    * @param {string} id
@@ -833,6 +859,7 @@ export class RenderContext {
     if (!floor || !since || !version) {
       return tags;
     }
+    ++this.#sinceFloorApplied;
     const raised = +version[1] < floor ? { name: 'since', value: `Chrome ${floor}` } : since;
     return tags.flatMap((tag) => (
       tag === since ? [raised, { name: 'chrome-namespace-since', value: since.value }] : [tag]
