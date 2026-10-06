@@ -90,7 +90,7 @@ This is used internally to generate historic version data for Chrome's APIs.
     symbols.set(id, Boolean(spec.deprecated));
   });
 
-  renderContext.renderAll(Object.values(o.api));
+  renderContext.renderRoot(Object.values(o.api), 'chrome');
 
   const keys = [...symbols.keys()];
   keys.sort((a, b) => {

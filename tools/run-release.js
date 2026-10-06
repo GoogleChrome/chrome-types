@@ -79,10 +79,17 @@ const chromePayload = toolInvoke('prepare.js');
 
 
 log('Building types for MV3+...');
-const indexTypesContent = toolInvoke('render-tsd.js', { input: chromePayload, args: ['-s', '.cache/history.json'] });
+const indexTypesContent = toolInvoke('render-tsd.js', { input: chromePayload, args: ['--root=browser', '-s', '.cache/history.json'] });
 const indexTypesFile = path.join(distDir, 'index.d.ts');
 fs.writeFileSync(indexTypesFile, indexTypesContent);
 typescriptCheck(indexTypesFile);
+
+
+log('Building MV3+ types without browser...');
+const noBrowserTypesContent = toolInvoke('render-tsd.js', { input: chromePayload, args: ['-s', '.cache/history.json'] });
+const noBrowserTypesFile = path.join(distDir, 'no-browser.d.ts');
+fs.writeFileSync(noBrowserTypesFile, noBrowserTypesContent);
+typescriptCheck(noBrowserTypesFile);
 
 
 log('Building types for all...');
@@ -100,7 +107,7 @@ const priorVersion = publishedInfo.version ?? '';
 
 
 log('Determining change...');
-const buildHash = generateLinesHash(indexTypesContent, allTypesContent);
+const buildHash = generateLinesHash(indexTypesContent, noBrowserTypesContent, allTypesContent);
 const wasChange = buildHash !== previousHash;
 log(wasChange ? `Hash change: ${previousHash} => ${buildHash}` : `No change: ${buildHash}`);
 
