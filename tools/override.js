@@ -24,7 +24,7 @@ import * as chromeTypes from '../types/chrome.js';
 import * as overrideTypes from '../types/override.js';
 import { leastReleasedChannel, mostReleasedChannel } from './lib/channel.js';
 import { buildNamespaceAwareMarkdownRewrite } from './lib/comment.js';
-import { FeatureQuery } from './lib/feature-query.js';
+import { FeatureQuery, extensionTypesInclude } from './lib/feature-query.js';
 import { namespaceNameFromId, parentId } from './lib/traverse.js';
 import { isDeepEqual } from './lib/equal.js';
 
@@ -182,7 +182,7 @@ export class RenderOverride extends EmptyRenderOverride {
    * @param {string} id
    */
   isPlatformAppsOnly(id) {
-    return !this.#fq.checkFeature(id, (f) => !f.extension_types || [...f.extension_types].some((t) => t !== "platform_app"));
+    return !this.#fq.checkFeature(id, (f) => !f.extension_types || f.extension_types === 'all' || f.extension_types.some((t) => t !== "platform_app"));
   }
 
   /**
@@ -546,7 +546,7 @@ export class RenderOverride extends EmptyRenderOverride {
 
       (f.platforms ?? []).forEach((platform) => platforms.add(platform));
 
-      if (f.extension_types && !f.extension_types.includes('extension') && f.extension_types.includes('platform_app')) {
+      if (f.extension_types && !extensionTypesInclude(f.extension_types, 'extension') && extensionTypesInclude(f.extension_types, 'platform_app')) {
         isOnlyPlatformApps = true;
       }
 

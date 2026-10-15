@@ -70,7 +70,7 @@ export class FeatureQuery {
     }
 
     // Filter by extension (prefer).
-    const extensionFilter = q.filter(({ extension_types }) => extension_types?.includes('extension'));
+    const extensionFilter = q.filter(({ extension_types }) => extensionTypesInclude(extension_types, 'extension'));
     if (extensionFilter.length === 1) {
       return extensionFilter[0];
     }
@@ -215,6 +215,46 @@ export class FeatureQuery {
 
 
 /**
+ * Checks whether an `extension_types` value includes the given type. Chrome's feature compiler
+ * allows this field to be the literal string "all" instead of a list, meaning every extension
+ * type is allowed, so a plain `includes` call would run as a substring test and misread "all" as
+ * excluding everything.
+ *
+ * @param {chromeTypes.MinArray<chromeTypes.ExtensionType>|chromeTypes.All|undefined} extensionTypes
+ * @param {chromeTypes.ExtensionType} type
+ * @return {boolean}
+ */
+export function extensionTypesInclude(extensionTypes, type) {
+  return extensionTypes === 'all' || (extensionTypes?.includes(type) ?? false);
+}
+
+/**
+ * A FeatureQuery that only allows APIs available in MV3+, used to render the main chrome-types
+ * bundle (everything except the `-a`/`--all` output, which keeps MV2 and Platform Apps too).
+ */
+export class FeatureQueryModern extends FeatureQuery {
+
+  /**
+   * @param {chromeTypes.FeatureSpec} f
+   * @return {boolean}
+   */
+  filter(f) {
+    // Don't show anything that maxes out before MV3.
+    if (f.max_manifest_version && f.max_manifest_version < 3) {
+      return false;
+    }
+
+    // Remove non-extension APIs.
+    if (f.extension_types && !extensionTypesInclude(f.extension_types, 'extension')) {
+      return false;
+    }
+
+    return super.filter(f);
+  }
+
+}
+
+/**
  * @param {chromeTypes.FeatureSpec} f
  * @return {boolean}
  */
@@ -243,10 +283,10 @@ function basicFilter(f) {
   }
 
   // Only allow a limited set of extension types.
-  if (Array.isArray(f.extension_types)) {
+  if (f.extension_types !== undefined) {
     /** @type {chromeTypes.ExtensionType[]} */
     const allowedTypes = ['extension', 'platform_app'];
-    const ok = allowedTypes.some((check) => f.extension_types?.includes(check));
+    const ok = allowedTypes.some((check) => extensionTypesInclude(f.extension_types, check));
     if (!ok) {
       return false;
     }
