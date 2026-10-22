@@ -5,17 +5,23 @@ on:
   schedule:
     - cron: '15 22 * * *'
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
 
@@ -28,10 +34,19 @@ jobs:
   publish-npm:
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      WIF_PROVIDER: 'projects/305452601764/locations/global/workloadIdentityPools/builders/providers/github'
+      EXIT_GATE_AR_URL: 'https://us-npm.pkg.dev/oss-exit-gate-prod/chrome-types--npm/'
+      EXIT_GATE_MANIFEST_GCS: 'gs://oss-exit-gate-prod-projects-bucket/chrome-types/npm/manifests'
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
 
@@ -39,7 +54,7 @@ jobs:
 
       # Cache the output of this action.
       # As of Chrome 95, this release takes ~5 minutes on GitHub without this.
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           key: ${{ runner.os }}-build-cache-${{ github.run_id }}
           path: .cache
@@ -57,15 +72,69 @@ jobs:
 
       # This publishes only if the package.json version has been incremented compared to the latest
       # published version. Incrementing happens in build above.
-      - uses: JS-DevTools/npm-publish@v1
+      - name: Check if version changed
+        id: check_version
+        run: |
+          PUBLISHED_VERSION=$(jq -r .version node_modules/chrome-types/package.json)
+          NEW_VERSION=$(jq -r .version dist/package.json)
+          echo "Published version: ${PUBLISHED_VERSION}"
+          echo "Built version: ${NEW_VERSION}"
+          if [[ "${NEW_VERSION}" != "${PUBLISHED_VERSION}" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Authenticate to Google Cloud
+        if: steps.check_version.outputs.changed == 'true'
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
-          # This is from Google-internal go/wombot.
-          token: ${{ secrets.WOMBOT_TOKEN }}
-          registry: https://wombat-dressing-room.appspot.com
-          package: ./dist/package.json
+          token_format: 'access_token'
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+
+      - name: Set up Cloud SDK
+        if: steps.check_version.outputs.changed == 'true'
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+
+      - name: Stage package to OSS Exit Gate Artifact Registry
+        if: steps.check_version.outputs.changed == 'true'
+        working-directory: dist
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          cat << EOF > "$HOME/.npmrc"
+          registry=${EXIT_GATE_AR_URL}
+          //us-npm.pkg.dev/oss-exit-gate-prod/chrome-types--npm/:always-auth=true
+          //us-npm.pkg.dev/oss-exit-gate-prod/chrome-types--npm/:_authToken=${ACCESS_TOKEN}
+          EOF
+          trap 'rm -f "$HOME/.npmrc"' EXIT
+          npm publish --registry="${EXIT_GATE_AR_URL}"
+
+      - name: Trigger OSS Exit Gate release
+        if: steps.check_version.outputs.changed == 'true'
+        env:
+          NEW_VERSION: ${{ steps.check_version.outputs.version }}
+          MANIFEST_NAME: manifest-${{ github.run_id }}-${{ github.run_attempt }}.json
+        run: |
+          jq -n --arg ver "${NEW_VERSION}" '{
+            publish_all: false,
+            publishing_groups: [
+              {
+                packages: [
+                  {
+                    name: "chrome-types",
+                    version: $ver
+                  }
+                ]
+              }
+            ]
+          }' > manifest.json
+          gcloud storage cp manifest.json "${EXIT_GATE_MANIFEST_GCS}/${MANIFEST_NAME}"
 
       - name: Upload history.json
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: history
           path: .cache/history.json
